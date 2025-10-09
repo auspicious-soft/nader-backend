@@ -7,6 +7,7 @@ import { ENV } from "./config/env.js";
 import connectDB from "./config/db.js";
 import { auth } from "./routes/auth.js";
 import { admin } from "./routes/admin.js";
+import { user } from "./routes/user.js";
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,7 @@ app.get("/", (_: Request, res: Response) => {
 
 app.use("/api", auth);
 app.use("/api/admin", admin);
+app.use("/api/user", user);
 
 // 404 handler
 app.use((_: Request, res: Response) => {

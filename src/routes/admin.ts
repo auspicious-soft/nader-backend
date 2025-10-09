@@ -11,6 +11,7 @@ import { ENV } from "../config/env.js";
 import { CollectionModel } from "../models/collection-schema.js";
 import { SidebarModel } from "../models/sidebar-schema.js";
 import { HomepageModel } from "../models/homepage.js";
+import { StyleGuidModel } from "../models/style-guid.js";
 
 // Code
 const router = Router();
@@ -118,8 +119,13 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
     if (!sidebar) {
       return NOT_FOUND(res, "Sidebar not found");
     }
-    if (title) sidebar.title = title;
-    if (image) sidebar.image = image;
+    if (title) {
+      sidebar.title = title;
+    }
+    if (image && image !== sidebar.image) {
+      sidebar.image = image;
+      //TODO : Have to delete old image from S3
+    }
     if (handle) sidebar.handle = handle;
     await sidebar.save();
     return OK(res, sidebar);
@@ -146,6 +152,8 @@ router.delete(
       // Finally delete the sidebar itself
       await SidebarModel.findByIdAndDelete(id);
 
+      //TODO : Have to delete old image from S3
+
       return OK(res, {}, "Sidebar deleted successfully");
     } catch (error) {
       return INTERNAL_SERVER_ERROR(res, error);
@@ -169,7 +177,6 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
   try {
     const { type } = req.query;
     const { title, description, image, handle } = req.body;
-    const response = {};
     const checkHomeExist = await HomepageModel.findOne();
     if (!checkHomeExist) {
       await HomepageModel.create({
@@ -205,8 +212,6 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
     } else {
       return NOT_FOUND(res, "Valid type is required");
     }
-
-    return OK(res, response);
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
   }
@@ -225,6 +230,7 @@ router.delete(
           { $pull: { banners: { _id: id } } },
           { new: true }
         ).select("-id -__v -createdAt -updatedAt");
+        //TODO : Have to delete old image from S3
         return OK(res, response);
       } else if (type === "style") {
         const response = await HomepageModel.findOneAndUpdate(
@@ -232,7 +238,151 @@ router.delete(
           { $pull: { styles: { _id: id } } },
           { new: true }
         ).select("-id -__v -createdAt -updatedAt");
+        //TODO : Have to delete old image from S3
         return OK(res, response);
+      } else {
+        return NOT_FOUND(res, "Valid type is required");
+      }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+// Style-guid routes
+router.post(
+  "/styleguid",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { title, pointers, image, id } = req.body;
+
+      if (id) {
+        const styleGuid = await StyleGuidModel.findById(id);
+        if (!styleGuid) {
+          return NOT_FOUND(res, "Style guide not found");
+        }
+        styleGuid.title = title || styleGuid.title;
+        styleGuid.pointers = pointers || styleGuid.pointers;
+        styleGuid.image = image || styleGuid.image;
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else {
+        const data = await StyleGuidModel.create({
+          title,
+          pointers,
+          image,
+        });
+
+        return CREATED(res, data);
+      }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.post(
+  "/styleguid-subsection",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { type } = req.query;
+      const { title, pointers, description, handle, link, image, id } =
+        req.body;
+
+      if (!id) return NOT_FOUND(res, "Style guide ID is required");
+      const styleGuid = await StyleGuidModel.findById(id);
+
+      if (!styleGuid) {
+        return NOT_FOUND(res, "Style guide not found");
+      }
+
+      if (!type) return NOT_FOUND(res, "Type is required");
+
+      if (type === "youtube") {
+        styleGuid.youtube = {
+          image: image || null,
+          link: link || null,
+        };
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else if (type === "length") {
+        styleGuid.lengths.push({
+          image,
+          title,
+          description,
+          pointers: pointers || [],
+          handle: handle || null,
+        });
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else if (type === "paring") {
+        styleGuid.paring.push({
+          image,
+          title,
+          handle: handle || null,
+        });
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else {
+        return NOT_FOUND(res, "Valid type is required");
+      }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.get("/styleguid", checkUserAuth, async (req: Request, res: Response) => {
+  try {
+    const response = await StyleGuidModel.find()
+      .select("-id -__v -createdAt -updatedAt")
+      .lean();
+    return OK(res, response);
+  } catch (error) {
+    return INTERNAL_SERVER_ERROR(res, error);
+  }
+});
+
+router.delete(
+  "/styleguid",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { type, sid, id } = req.query;
+      if (!sid) return NOT_FOUND(res, "Style guide ID is required");
+      const styleGuid = await StyleGuidModel.findById(sid);
+      if (!styleGuid) {
+        return NOT_FOUND(res, "Style guide not found");
+      }
+      if (type === "length") {
+        if (!id) return NOT_FOUND(res, "ID is required");
+
+        styleGuid.lengths = styleGuid.lengths.filter(
+          (length: any) => length._id?.toString() !== id
+        );
+        //TODO : Have to delete old image from S3
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else if (type === "paring") {
+        if (!id) return NOT_FOUND(res, "ID is required");
+
+        styleGuid.paring = styleGuid.paring.filter(
+          (paring: any) => paring._id?.toString() !== id
+        );
+        //TODO : Have to delete old image from S3
+        await styleGuid.save();
+        return OK(res, styleGuid);
+      } else if (type === "youtube") {
+        styleGuid.youtube = { image: null, link: null };
+        await styleGuid.save();
+        //TODO : Have to delete old image from S3
+        return OK(res, styleGuid);
+      } else if (type === "styleguid") {
+        await StyleGuidModel.findByIdAndDelete(sid);
+        //TODO : Have to delete old image from S3
+        return OK(res, {}, "Style guide deleted successfully");
       } else {
         return NOT_FOUND(res, "Valid type is required");
       }

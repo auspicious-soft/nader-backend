@@ -1,5 +1,4 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { title } from "process";
 
 export interface IHomepage extends Document {
   banners: object[];

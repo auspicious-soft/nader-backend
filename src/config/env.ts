@@ -15,4 +15,5 @@ export const ENV = {
   X_SHOPIFY_ACESS_TOKEN: process.env.X_SHOPIFY_ACESS_TOKEN || "",
   X_SHOPIFY_STOREFRONT_ACCESS_TOKEN:
     process.env.X_SHOPIFY_STOREFRONT_ACCESS_TOKEN || "",
+  MOBILE_APP_API_SECRET: process.env.MOBILE_APP_API_SECRET || "nader@mobile",
 };
