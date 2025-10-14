@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 
-const envFile = process.env.ENV === "DEV" ? ".env.prod" : ".env.dev";
+const envFile = ".env";
 
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
