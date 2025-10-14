@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import {
+  BADREQUEST,
   CREATED,
   INTERNAL_SERVER_ERROR,
   NOT_FOUND,
@@ -13,6 +14,8 @@ import { SidebarModel } from "../models/sidebar-schema.js";
 import { HomepageModel } from "../models/homepage.js";
 import { StyleGuidModel } from "../models/style-guid.js";
 import { HomeHeadModel } from "../models/home-head.js";
+import { deleteFileFromS3, multerUpload, uploadFileToS3 } from "../utils/s3.js";
+import sharp from "sharp";
 
 // Code
 const router = Router();
@@ -124,8 +127,8 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
       sidebar.title = title;
     }
     if (image && image !== sidebar.image) {
+      if (sidebar?.image) await deleteFileFromS3(sidebar?.image);
       sidebar.image = image;
-      //TODO : Have to delete old image from S3
     }
     if (handle) sidebar.handle = handle;
     await sidebar.save();
@@ -153,7 +156,7 @@ router.delete(
       // Finally delete the sidebar itself
       await SidebarModel.findByIdAndDelete(id);
 
-      //TODO : Have to delete old image from S3
+      if (sidebar?.image) await deleteFileFromS3(sidebar?.image);
 
       return OK(res, {}, "Sidebar deleted successfully");
     } catch (error) {
@@ -195,6 +198,7 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
         },
         { new: true }
       ).select("-id -__v -createdAt -updatedAt");
+
       return OK(res, response);
     } else if (type === "style") {
       const response = await HomepageModel.findOneAndUpdate(
@@ -226,20 +230,38 @@ router.delete(
       const { type, id } = req.query;
       if (!id) return NOT_FOUND(res, "ID is required");
       if (type === "banner") {
-        const response = await HomepageModel.findOneAndUpdate(
+        const deletedImage = (await HomepageModel.findOne(
+          { "banners._id": id },
+          { "banners.$": 1 }
+        ).lean()) as any;
+
+        if (deletedImage?.banners[0]?.image)
+          await deleteFileFromS3(deletedImage?.banners[0]?.image);
+        else return NOT_FOUND(res, "Banner image not found");
+
+        const response = (await HomepageModel.findOneAndUpdate(
           {},
           { $pull: { banners: { _id: id } } },
           { new: true }
-        ).select("-id -__v -createdAt -updatedAt");
-        //TODO : Have to delete old image from S3
+        ).select("-id -__v -createdAt -updatedAt")) as any;
+
         return OK(res, response);
       } else if (type === "style") {
+        const deletedImage = (await HomepageModel.findOne(
+          { "styles._id": id },
+          { "styles.$": 1 }
+        ).lean()) as any;
+
+        if (deletedImage?.styles[0]?.image)
+          await deleteFileFromS3(deletedImage?.styles[0]?.image);
+        else return NOT_FOUND(res, "Style image not found");
+
         const response = await HomepageModel.findOneAndUpdate(
           {},
           { $pull: { styles: { _id: id } } },
           { new: true }
         ).select("-id -__v -createdAt -updatedAt");
-        //TODO : Have to delete old image from S3
+
         return OK(res, response);
       } else {
         return NOT_FOUND(res, "Valid type is required");
@@ -366,6 +388,10 @@ router.post(
           image: image || null,
           link: link || null,
         };
+
+        if (image && styleGuid?.youtube?.image !== image) {
+          await deleteFileFromS3(styleGuid?.youtube?.image || "");
+        }
         await styleGuid.save();
         return OK(res, styleGuid);
       } else if (type === "length") {
@@ -376,6 +402,11 @@ router.post(
           pointers: pointers || [],
           handle: handle || null,
         });
+
+        if (image && styleGuid?.lengths?.[0]?.image !== image) {
+          await deleteFileFromS3(styleGuid?.lengths?.[0]?.image || "");
+        }
+
         await styleGuid.save();
         return OK(res, styleGuid);
       } else if (type === "paring") {
@@ -384,6 +415,10 @@ router.post(
           title,
           handle: handle || null,
         });
+
+        if (image && styleGuid?.paring?.[0]?.image !== image) {
+          await deleteFileFromS3(styleGuid?.paring?.[0]?.image || "");
+        }
         await styleGuid.save();
         return OK(res, styleGuid);
       } else {
@@ -449,6 +484,47 @@ router.delete(
       }
     } catch (error) {
       return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+// Upload to S3 route
+
+router.post(
+  "/upload",
+  checkUserAuth,
+  multerUpload,
+  async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+
+      if (!file) {
+        return BADREQUEST(res, "Missing file or user");
+      }
+
+      let fileBuffer = file.buffer;
+
+      // ✅ If it's an image, compress it with sharp
+      if (file.mimetype.startsWith("image/")) {
+        fileBuffer = await sharp(file.buffer)
+          .resize({ width: 1280 }) // optional: resize max width
+          .jpeg({ quality: 50 }) // compress JPEG to ~50% quality
+          .toBuffer();
+      }
+
+      const result = await uploadFileToS3(
+        file.buffer,
+        file.originalname,
+        file.mimetype
+      );
+
+      return CREATED(res, result);
+    } catch (err: any) {
+      console.error("S3 Upload Error:", err);
+      if (err.message) {
+        return BADREQUEST(res, err.message);
+      }
+      return INTERNAL_SERVER_ERROR(res, err);
     }
   }
 );

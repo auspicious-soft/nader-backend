@@ -16,4 +16,9 @@ export const ENV = {
   X_SHOPIFY_STOREFRONT_ACCESS_TOKEN:
     process.env.X_SHOPIFY_STOREFRONT_ACCESS_TOKEN || "",
   MOBILE_APP_API_SECRET: process.env.MOBILE_APP_API_SECRET || "nader@mobile",
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || "",
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "",
+  AWS_REGION: process.env.AWS_REGION || "",
+  AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || "",
+  AWS_BUCKET_URL: process.env.AWS_BUCKET_URL || "",
 };
