@@ -12,6 +12,7 @@ import { CollectionModel } from "../models/collection-schema.js";
 import { SidebarModel } from "../models/sidebar-schema.js";
 import { HomepageModel } from "../models/homepage.js";
 import { StyleGuidModel } from "../models/style-guid.js";
+import { HomeHeadModel } from "../models/home-head.js";
 
 // Code
 const router = Router();
@@ -243,6 +244,66 @@ router.delete(
       } else {
         return NOT_FOUND(res, "Valid type is required");
       }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+// Home-head routes
+
+router.post(
+  "/homepage-head",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { title, description } = req.body;
+      if (!title || !description)
+        return NOT_FOUND(res, "Title and Description are required");
+      const checkHomeHeadExist = await HomeHeadModel.findOne();
+
+      if (checkHomeHeadExist) {
+        checkHomeHeadExist.title = title || checkHomeHeadExist.title;
+        checkHomeHeadExist.description =
+          description || checkHomeHeadExist.description;
+        await checkHomeHeadExist.save();
+        return OK(res, checkHomeHeadExist);
+      } else {
+        const data = await HomeHeadModel.create({
+          title,
+          description,
+        });
+        return CREATED(res, data);
+      }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.get(
+  "/homepage-head",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await HomeHeadModel.findOne()
+        .select("-id -__v -createdAt -updatedAt")
+        .lean();
+      return OK(res, response);
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.delete(
+  "/homepage-head",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await HomeHeadModel.findOneAndDelete();
+      if (!response) return NOT_FOUND(res, "Homepage head not found");
+      return OK(res, response);
     } catch (error) {
       return INTERNAL_SERVER_ERROR(res, error);
     }
