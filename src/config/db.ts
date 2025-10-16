@@ -8,7 +8,6 @@ configDotenv();
 const connectDB = async () => {
   const maxRetries = 5; // Number of retry attempts
   let attempt = 0;
-
   const connectWithRetry = async () => {
     try {
       await mongoose.connect(ENV.MONGO as string);
