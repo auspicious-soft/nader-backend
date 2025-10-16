@@ -9,6 +9,8 @@
 .env*
 !.env.example
 
+nader-admin.pem
+
 # Logs
 *.log
 npm-debug.log*

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "dotenv -e .env.local tsx src/app.ts",
+    "start": "dotenv -e .env tsx src/app.ts",
     "dev": "dotenv -e .env tsx watch src/app.ts",
     "migrate": "tsx src/migrations/migrate.ts"
   },
