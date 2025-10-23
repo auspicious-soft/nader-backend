@@ -12,12 +12,14 @@ async function updateCollections() {
     async function run(endCursor: string | null = null) {
       const res: any = await fetchCollectionsList(250, endCursor);
       const list = res?.data?.collections;
+      console.warn(list);
 
       if (list?.nodes?.length) {
         const filtered = list.nodes.map((col: any) => ({
           id: col.id,
           title: col.title,
           handle: col.handle,
+          image: col?.image?.originalSrc || null
         }));
         data.push(...filtered);
       }

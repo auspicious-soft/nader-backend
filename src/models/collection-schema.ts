@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ICollection extends Document {
   title: string;
   handle: string;
+  image: any;
   id: string;
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +20,7 @@ const CollectionSchema: Schema<ICollection> = new Schema(
       unique: true,
       required: true,
     },
+    image: {},
     id: {
       type: String,
       unique: true,
