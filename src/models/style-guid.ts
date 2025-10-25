@@ -4,6 +4,8 @@ export interface IStyleGuid extends Document {
   title: string;
   pointers: string[];
   image: string | null;
+  description: string;
+  shortDescription: string;
   lengths: {
     image: string;
     title: string;
@@ -20,6 +22,7 @@ export interface IStyleGuid extends Document {
     image: string | null;
     link: string | null;
   };
+  featureImgURL: string | null;
   paring: {
     image: string;
     title: string;
@@ -33,6 +36,8 @@ const StyleGuidSchema: Schema<IStyleGuid> = new Schema(
   {
     title: { type: String, default: "Default Title" },
     pointers: [{ type: String }],
+    description: { type: String,  },
+    shortDescription: { type: String },
     image: { type: String, default: null },
     lengths: [
       {
@@ -47,6 +52,7 @@ const StyleGuidSchema: Schema<IStyleGuid> = new Schema(
       image: { type: String, default: null },
       link: { type: String, default: null },
     },
+    featureImgURL: { type: String, default: null },
     paring: [
       {
         image: { type: String, required: true },
