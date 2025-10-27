@@ -180,7 +180,7 @@ router.get("/homepage", checkUserAuth, async (req: Request, res: Response) => {
 router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
   try {
     const { type } = req.query;
-    const { title, description, image, handle } = req.body;
+    const { title, description, image, handle, fabricName } = req.body;
     const checkHomeExist = await HomepageModel.findOne();
     if (!checkHomeExist) {
       await HomepageModel.create({
@@ -204,6 +204,13 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
       const response = await HomepageModel.findOneAndUpdate(
         {},
         { $push: { styles: { title, image, handle } } },
+        { new: true }
+      ).select("-id -__v -createdAt -updatedAt");
+      return OK(res, response);
+    } else if (type === "fabric") {
+      const response = await HomepageModel.findOneAndUpdate(
+        {},
+        { $push: { fabrics: { title, image, handle, fabricName } } },
         { new: true }
       ).select("-id -__v -createdAt -updatedAt");
       return OK(res, response);
@@ -263,7 +270,24 @@ router.delete(
         ).select("-id -__v -createdAt -updatedAt");
 
         return OK(res, response);
-      } else {
+      } else if (type === "fabric") {
+        const deletedImage = (await HomepageModel.findOne(
+          { "fabrics._id": id },
+          { "fabrics.$": 1 }
+        ).lean()) as any;
+
+        if (deletedImage?.fabrics[0]?.image)
+          await deleteFileFromS3(deletedImage?.fabrics[0]?.image);
+        else return NOT_FOUND(res, "Fabric image not found");
+
+        const response = await HomepageModel.findOneAndUpdate(
+          {},
+          { $pull: { fabrics: { _id: id } } },
+          { new: true }
+        ).select("-id -__v -createdAt -updatedAt");
+
+        return OK(res, response);
+      }else {
         return NOT_FOUND(res, "Valid type is required");
       }
     } catch (error) {

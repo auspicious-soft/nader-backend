@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IHomepage extends Document {
   banners: object[];
   styles: object[];
+  fabrics: object[];
   title: string;
   description: string;
   createdAt: Date;
@@ -25,6 +26,14 @@ const HomepageSchema: Schema<IHomepage> = new Schema(
       {
         image: { type: String, required: true },
         title: { type: String, required: true },
+        handle: { type: String, required: true },
+      },
+    ],
+    fabrics: [
+      {
+        image: { type: String, required: true },
+        title: { type: String, required: true },
+        fabricName: { type: String, required: true },
         handle: { type: String, required: true },
       },
     ],
