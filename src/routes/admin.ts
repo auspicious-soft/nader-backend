@@ -61,7 +61,7 @@ router.get("/dropdown", checkUserAuth, async (req: Request, res: Response) => {
 
 router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const { title, image, handle, child, parent } = req.body;
+    const { title, image, handle, child, parent, wantImage } = req.body;
 
     if (parent) {
       const parentSidebar = await SidebarModel.findById(parent);
@@ -73,6 +73,7 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
         image,
         handle,
         child,
+        wantImage,
       })) as any;
       parentSidebar.child.push(newSidebar._id);
       await parentSidebar.save();
@@ -84,6 +85,7 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
         handle,
         child,
         isPrime: true,
+        wantImage,
       });
       return OK(res, data);
     }

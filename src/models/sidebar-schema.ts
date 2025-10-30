@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ISidebar extends Document {
   title: string;
   image: string | null;
+  wantImage: boolean;
   handle: string | null;
   isPrime: boolean;
   child: mongoose.Types.ObjectId[];
@@ -19,6 +20,10 @@ const SidebarSchema: Schema<ISidebar> = new Schema(
     image: {
       type: String,
       default: null,
+    },
+    wantImage: {
+      type: Boolean,
+      default: false,
     },
     handle: {
       type: String,
