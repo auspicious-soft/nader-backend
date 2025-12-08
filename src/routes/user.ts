@@ -4,6 +4,7 @@ import { SidebarModel } from "../models/sidebar-schema.js";
 import { HomepageModel } from "../models/homepage.js";
 import { StyleGuidModel } from "../models/style-guid.js";
 import { ENV } from "../config/env.js";
+import { fcmTokenModel } from "../models/fcmToken.js";
 
 // Code
 const router = Router();
@@ -70,6 +71,21 @@ router.get("/homepage", checkUserAuth, async (req: Request, res: Response) => {
 router.get("/styleguid", checkUserAuth, async (req: Request, res: Response) => {
   try {
     const response = await StyleGuidModel.find()
+      .select("-id -__v -createdAt -updatedAt")
+      .lean();
+    return OK(res, response);
+  } catch (error) {
+    return INTERNAL_SERVER_ERROR(res, error);
+  }
+});
+router.get("/fcmToken", checkUserAuth, async (req: Request, res: Response) => {
+  try {
+    const { fcmToken } = req.body;
+    const response = await fcmTokenModel.findOneAndUpdate(
+      {Active: true},
+      { $pull: { fcmTokens: fcmToken } },
+      { new: true, upsert: true }
+    )
       .select("-id -__v -createdAt -updatedAt")
       .lean();
     return OK(res, response);

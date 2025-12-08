@@ -16,6 +16,7 @@ import { StyleGuidModel } from "../models/style-guid.js";
 import { HomeHeadModel } from "../models/home-head.js";
 import { deleteFileFromS3, multerUpload, uploadFileToS3 } from "../utils/s3.js";
 import sharp from "sharp";
+import { sendNotification } from "../utils/FCM.js";
 
 // Code
 const router = Router();
@@ -59,6 +60,19 @@ router.get("/dropdown", checkUserAuth, async (req: Request, res: Response) => {
   }
 });
 
+router.post("/notifications", checkUserAuth, async (req: Request, res: Response) => {
+  try {
+    const {title, description } = req.body;
+    await sendNotification({
+      adminTitle: title,
+      adminDescription: description,
+    });
+    return OK(res, {}, "Notifications sent successfully");
+  } catch (error) {
+    return INTERNAL_SERVER_ERROR(res, error);
+  }
+});
+    
 router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {
     const { title, image, handle, child, parent, wantImage } = req.body;

@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISidebar extends Document {
+  order: number;
   title: string;
   image: string | null;
   wantImage: boolean;
@@ -13,6 +14,10 @@ export interface ISidebar extends Document {
 
 const SidebarSchema: Schema<ISidebar> = new Schema(
   {
+    order: {
+      type: Number,
+      default: 0,
+    },
     title: {
       type: String,
       required: true,
@@ -44,5 +49,12 @@ const SidebarSchema: Schema<ISidebar> = new Schema(
     timestamps: true,
   }
 );
+SidebarSchema.pre("save", async function (next) {
+  if (this.isNew) {
+    const lastSidebar = await SidebarModel.findOne().sort({ order: -1 });
+    this.order = lastSidebar ? lastSidebar.order + 1 : 1;
+  }
+  next();
+});
 
 export const SidebarModel = mongoose.model<ISidebar>("Sidebar", SidebarSchema);

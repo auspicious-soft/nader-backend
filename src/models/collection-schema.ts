@@ -11,6 +11,7 @@ export interface ICollection extends Document {
 
 const CollectionSchema: Schema<ICollection> = new Schema(
   {
+    
     title: {
       type: String,
       required: true,
