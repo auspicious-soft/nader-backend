@@ -1,15 +1,13 @@
-import { Schema, Types, model } from 'mongoose';
+import { Schema, model } from "mongoose";
 
-const fcmTokenSchema = new Schema({
-    fcmTokens: {
-        type: [String],
+const fcmTokenSchema = new Schema(
+  {
+    fcmToken: {
+      type: String,
+      required: true,
     },
-    Active:{
-        type: Boolean,
-        default: true
-    }
-},
-    { timestamps: true }
-)
+  },
+  { timestamps: true }
+);
 
-export const fcmTokenModel = model('fcmTokens', fcmTokenSchema)
+export const fcmTokenModel = model("fcmTokens", fcmTokenSchema);

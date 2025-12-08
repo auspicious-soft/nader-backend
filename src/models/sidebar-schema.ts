@@ -8,6 +8,7 @@ export interface ISidebar extends Document {
   handle: string | null;
   isPrime: boolean;
   child: mongoose.Types.ObjectId[];
+  parent: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,12 +50,5 @@ const SidebarSchema: Schema<ISidebar> = new Schema(
     timestamps: true,
   }
 );
-SidebarSchema.pre("save", async function (next) {
-  if (this.isNew) {
-    const lastSidebar = await SidebarModel.findOne().sort({ order: -1 });
-    this.order = lastSidebar ? lastSidebar.order + 1 : 1;
-  }
-  next();
-});
 
 export const SidebarModel = mongoose.model<ISidebar>("Sidebar", SidebarSchema);

@@ -12,7 +12,7 @@ async function updateCollections() {
     async function run(endCursor: string | null = null) {
       const res: any = await fetchCollectionsList(250, endCursor);
       const list = res?.data?.collections;
-      console.warn(list);
+      // console.warn(list);
 
       if (list?.nodes?.length) {
         const filtered = list.nodes.map((col: any) => ({
