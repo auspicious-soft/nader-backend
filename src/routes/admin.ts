@@ -17,6 +17,10 @@ import { HomeHeadModel } from "../models/home-head.js";
 import { deleteFileFromS3, multerUpload, uploadFileToS3 } from "../utils/s3.js";
 import sharp from "sharp";
 import { sendNotification } from "../utils/FCM.js";
+import { SidebarModel1 } from "../models/sidebar1-schema.js";
+import { error } from "console";
+import { SidebarModel2 } from "../models/sidebar2-schema.js";
+import { SidebarModel3 } from "../models/sidebar3-schema.js";
 
 // Code
 const router = Router();
@@ -60,48 +64,130 @@ router.get("/dropdown", checkUserAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.post("/notifications", checkUserAuth, async (req: Request, res: Response) => {
-  try {
-    const {title, description } = req.body;
-    await sendNotification({
-      adminTitle: title,
-      adminDescription: description,
-    });
-    return OK(res, {}, "Notifications sent successfully");
-  } catch (error) {
-    return INTERNAL_SERVER_ERROR(res, error);
+router.post(
+  "/notifications",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { title, description } = req.body;
+      await sendNotification({
+        adminTitle: title,
+        adminDescription: description,
+      });
+      return OK(res, {}, "Notifications sent successfully");
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
   }
-});
-    
+);
+
 router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const { title, image, handle, child, parent, wantImage } = req.body;
+    // const { title, image, handle, child, parent, wantImage } = req.body;
 
-    if (parent) {
-      const parentSidebar = await SidebarModel.findById(parent);
+    // if (parent) {
+    //   const parentSidebar = await SidebarModel.findById(parent);
+    //   if (!parentSidebar) {
+    //     return NOT_FOUND(res, "Parent sidebar not found");
+    //   }
+    //   const newSidebar = (await SidebarModel.create({
+    //     title,
+    //     image,
+    //     handle,
+    //     child,
+    //     wantImage,
+    //   })) as any;
+    //   parentSidebar.child.push(newSidebar._id);
+    //   await parentSidebar.save();
+    //   return CREATED(res, newSidebar);
+    // } else {
+    //   const data = await SidebarModel.create({
+    //     title,
+    //     image,
+    //     handle,
+    //     child,
+    //     isPrime: true,
+    //     wantImage,
+    //   });
+    //   return OK(res, data);
+    // }
+
+    const { type, id, title, parent, image, handle } = req.body;
+
+    if (![1, 2, 3].includes(type)) {
+      throw new Error("Invalid Type");
+    }
+
+    if ((type == 2 || type == 3) && !parent) {
+      throw new Error("Parent ID is required for type 2 and 3");
+    }
+
+    if (type === 1 && id) {
+      await SidebarModel1.findByIdAndUpdate(id, { title, image, handle });
+      const updatedSidebar = await SidebarModel1.findById(id);
+      return OK(res, updatedSidebar);
+
+    } else if (type === 1 && !id) {
+      const order = (await SidebarModel1.countDocuments()) + 1;
+      const data = await SidebarModel1.create({ title, image, handle, order });
+      return CREATED(res, data);
+
+    } else if (type === 2 && id) {
+      const previousSidebar = await SidebarModel2.findById(id);
+      if(image !== previousSidebar?.image){
+        if(previousSidebar?.image){
+          await deleteFileFromS3(previousSidebar?.image);
+        }
+      }
+      await SidebarModel2.findByIdAndUpdate(id, { title, image, handle });
+      const updatedSidebar = await SidebarModel2.findById(id);
+      return OK(res, updatedSidebar);
+
+    } else if (type === 2 && !id) {
+      const parentSidebar = await SidebarModel1.findById(parent);
       if (!parentSidebar) {
         return NOT_FOUND(res, "Parent sidebar not found");
       }
-      const newSidebar = (await SidebarModel.create({
+      const order = (await SidebarModel2.countDocuments({ parent })) + 1;
+      const newSidebar = (await SidebarModel2.create({
         title,
         image,
         handle,
-        child,
-        wantImage,
+        order,
+        parent,
       })) as any;
-      parentSidebar.child.push(newSidebar._id);
-      await parentSidebar.save();
+
       return CREATED(res, newSidebar);
-    } else {
-      const data = await SidebarModel.create({
+
+    } else if (type === 3 && id) {
+
+      const previousSidebar = await SidebarModel3.findById(id);
+      if(image !== previousSidebar?.image){
+        if(previousSidebar?.image){
+          await deleteFileFromS3(previousSidebar?.image);
+        }
+      }
+      await SidebarModel3.findByIdAndUpdate(id, { title, image, handle });
+      const updatedSidebar = await SidebarModel3.findById(id);
+      return OK(res, updatedSidebar);
+
+    } else if (type === 3 && !id) {
+
+      const parentSidebar = await SidebarModel2.findById(parent);
+      if (!parentSidebar) {
+        return NOT_FOUND(res, "Parent sidebar not found");
+      }
+      const order = (await SidebarModel3.countDocuments({ parent })) + 1;
+      const newSidebar = (await SidebarModel3.create({
         title,
         image,
         handle,
-        child,
-        isPrime: true,
-        wantImage,
-      });
-      return OK(res, data);
+        order,
+        parent,
+      })) as any;
+
+      return CREATED(res, newSidebar);
+
     }
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
@@ -110,21 +196,92 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
 
 router.get("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const response = await SidebarModel.find({ isPrime: true })
-      .populate({
-        path: "child",
-        select: "-__v -createdAt -updatedAt",
-        populate: {
-          path: "child",
-          select: "-__v -createdAt -updatedAt",
-          populate: {
-            path: "child",
-            select: "-__v -createdAt -updatedAt",
+    const response = await SidebarModel1.aggregate([
+      // Sort level 1 (Sidebar1)
+      { $sort: { order: 1 } },
+
+      // Level 1 Lookup: Sidebar1 → Sidebar2
+      {
+        $lookup: {
+          from: "sidebar2",
+          localField: "_id",
+          foreignField: "parent",
+          as: "child",
+        },
+      },
+
+      // Sort Sidebar2 children
+      {
+        $addFields: {
+          child: {
+            $sortArray: { input: "$child", sortBy: { order: 1 } },
           },
         },
-      })
-      .select("-__v -createdAt -updatedAt")
-      .lean();
+      },
+
+      // Level 2 Lookup: Sidebar2 → Sidebar3
+      {
+        $lookup: {
+          from: "sidebar3",
+          localField: "child._id",
+          foreignField: "parent",
+          as: "childLevel2",
+        },
+      },
+
+      // Merge Sidebar3 into its corresponding Sidebar2
+      {
+        $addFields: {
+          child: {
+            $map: {
+              input: "$child",
+              as: "c",
+              in: {
+                $mergeObjects: [
+                  "$$c",
+                  {
+                    child: {
+                      $filter: {
+                        input: "$childLevel2",
+                        as: "cl2",
+                        cond: { $eq: ["$$cl2.parent", "$$c._id"] },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // Sort Sidebar3 children inside each Sidebar2
+      {
+        $addFields: {
+          child: {
+            $map: {
+              input: "$child",
+              as: "c",
+              in: {
+                $mergeObjects: [
+                  "$$c",
+                  {
+                    child: {
+                      $sortArray: {
+                        input: "$$c.child",
+                        sortBy: { order: 1 },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      { $unset: "childLevel2" },
+    ]);
 
     return OK(res, response);
   } catch (error) {
@@ -303,7 +460,7 @@ router.delete(
         ).select("-id -__v -createdAt -updatedAt");
 
         return OK(res, response);
-      }else {
+      } else {
         return NOT_FOUND(res, "Valid type is required");
       }
     } catch (error) {
@@ -538,7 +695,7 @@ router.delete(
         return OK(res, styleGuid);
       } else if (type === "styleguid") {
         await StyleGuidModel.findByIdAndDelete(sid);
-		
+
         //TODO : Have to delete old image from S3
         return OK(res, {}, "Style guide deleted successfully");
       } else {
