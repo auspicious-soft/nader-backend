@@ -23,6 +23,10 @@ const SidebarSchema3: Schema<ISidebar> = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Sidebar2",
     },
+    type: {
+      type: Number,
+      default: 3,
+    },
   },
   {
     timestamps: true,

@@ -9,6 +9,7 @@ export interface ISidebar extends Document {
   isPrime: boolean;
   child: mongoose.Types.ObjectId[];
   parent: mongoose.Types.ObjectId;
+  type: number;
   createdAt: Date;
   updatedAt: Date;
 }

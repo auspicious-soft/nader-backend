@@ -19,6 +19,10 @@ const SidebarSchema2: Schema<ISidebar> = new Schema(
       type: String,
       default: null,
     },
+    type: {
+      type: Number,
+      default: 2
+    },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Sidebar1",

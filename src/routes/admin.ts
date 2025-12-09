@@ -115,34 +115,31 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
     const { type, id, title, parent, image, handle } = req.body;
 
     if (![1, 2, 3].includes(type)) {
-      throw new Error("Invalid Type");
+      return BADREQUEST(res, "Invalid Type");
     }
 
     if ((type == 2 || type == 3) && !parent) {
-      throw new Error("Parent ID is required for type 2 and 3");
+      return BADREQUEST(res, "Parent ID is required for type 2 and 3");
     }
 
     if (type === 1 && id) {
       await SidebarModel1.findByIdAndUpdate(id, { title, image, handle });
       const updatedSidebar = await SidebarModel1.findById(id);
       return OK(res, updatedSidebar);
-
     } else if (type === 1 && !id) {
       const order = (await SidebarModel1.countDocuments()) + 1;
       const data = await SidebarModel1.create({ title, image, handle, order });
       return CREATED(res, data);
-
     } else if (type === 2 && id) {
       const previousSidebar = await SidebarModel2.findById(id);
-      if(image !== previousSidebar?.image){
-        if(previousSidebar?.image){
+      if (image !== previousSidebar?.image) {
+        if (previousSidebar?.image) {
           await deleteFileFromS3(previousSidebar?.image);
         }
       }
       await SidebarModel2.findByIdAndUpdate(id, { title, image, handle });
       const updatedSidebar = await SidebarModel2.findById(id);
       return OK(res, updatedSidebar);
-
     } else if (type === 2 && !id) {
       const parentSidebar = await SidebarModel1.findById(parent);
       if (!parentSidebar) {
@@ -158,21 +155,17 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
       })) as any;
 
       return CREATED(res, newSidebar);
-
     } else if (type === 3 && id) {
-
       const previousSidebar = await SidebarModel3.findById(id);
-      if(image !== previousSidebar?.image){
-        if(previousSidebar?.image){
+      if (image !== previousSidebar?.image) {
+        if (previousSidebar?.image) {
           await deleteFileFromS3(previousSidebar?.image);
         }
       }
       await SidebarModel3.findByIdAndUpdate(id, { title, image, handle });
       const updatedSidebar = await SidebarModel3.findById(id);
       return OK(res, updatedSidebar);
-
     } else if (type === 3 && !id) {
-
       const parentSidebar = await SidebarModel2.findById(parent);
       if (!parentSidebar) {
         return NOT_FOUND(res, "Parent sidebar not found");
@@ -187,7 +180,6 @@ router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
       })) as any;
 
       return CREATED(res, newSidebar);
-
     }
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
@@ -291,21 +283,28 @@ router.get("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
 
 router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const { id, title, image, handle } = req.body;
-    const sidebar = await SidebarModel.findById(id);
-    if (!sidebar) {
-      return NOT_FOUND(res, "Sidebar not found");
+    const { type, from = {}, to = {} } = req.body;
+
+    if (![1, 2, 3].includes(type)) {
+      return BADREQUEST(res, "Invalid Type");
     }
-    if (title) {
-      sidebar.title = title;
+
+    if(from.id === to.id){
+      return OK(res, {});
     }
-    if (image && image !== sidebar.image) {
-      if (sidebar?.image) await deleteFileFromS3(sidebar?.image);
-      sidebar.image = image;
+    
+    if (type === 1) {
+      await SidebarModel1.findByIdAndUpdate(from.id, { order: to.order });
+      await SidebarModel1.findByIdAndUpdate(to.id, { order: from.order });
+    } else if (type === 2) {
+      await SidebarModel2.findByIdAndUpdate(from.id, { order: to.order });
+      await SidebarModel2.findByIdAndUpdate(to.id, { order: from.order });
+    } else if (type === 3) {
+      await SidebarModel3.findByIdAndUpdate(from.id, { order: to.order });
+      await SidebarModel3.findByIdAndUpdate(to.id, { order: from.order });
     }
-    if (handle) sidebar.handle = handle;
-    await sidebar.save();
-    return OK(res, sidebar);
+
+    return OK(res, {});
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
   }
@@ -318,16 +317,23 @@ router.delete(
     try {
       const { id } = req.params;
 
-      const sidebar = await SidebarModel.findById(id);
-      if (!sidebar) {
-        return NOT_FOUND(res, "Sidebar not found");
+      const deleteItems = await SidebarModel1.findByIdAndDelete(id);
+      if (!deleteItems) {
+        const deleteItems2 = await SidebarModel2.findByIdAndDelete(id);
+        if (!deleteItems2) {
+          const deleteItems3 = await SidebarModel3.findByIdAndDelete(id);
+          if (!deleteItems3) {
+            return NOT_FOUND(res, "Sidebar not found");
+          }
+          const sidebar3 = deleteItems3 as any;
+          if (sidebar3?.image) await deleteFileFromS3(sidebar3?.image);
+          return OK(res, {}, "Sidebar deleted successfully");
+        }
+        const sidebar2 = deleteItems2 as any;
+        if (sidebar2?.image) await deleteFileFromS3(sidebar2?.image);
+        return OK(res, {}, "Sidebar deleted successfully");
       }
-
-      // Remove this sidebar from any parent's child array
-      await SidebarModel.updateMany({ child: id }, { $pull: { child: id } });
-
-      // Finally delete the sidebar itself
-      await SidebarModel.findByIdAndDelete(id);
+      const sidebar = deleteItems as any;
 
       if (sidebar?.image) await deleteFileFromS3(sidebar?.image);
 
