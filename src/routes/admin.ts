@@ -321,6 +321,43 @@ async function reorderItems(model: any) {
   }
 }
 
+// router.delete(
+//   "/sidebar/:id",
+//   checkUserAuth,
+//   async (req: Request, res: Response) => {
+//     try {
+//       const { id } = req.params;
+
+//       // DELETE FROM SIDEBAR1
+//       let deleted: any = (await SidebarModel1.findByIdAndDelete(id)) as any;
+//       if (deleted) {
+//         await reorderItems(SidebarModel1);
+//         return OK(res, {}, "Sidebar deleted successfully");
+//       }
+
+//       // DELETE FROM SIDEBAR2
+//       deleted = (await SidebarModel2.findByIdAndDelete(id)) as any;
+//       if (deleted) {
+//         if (deleted?.image) await deleteFileFromS3(deleted?.image);
+//         await reorderItems(SidebarModel2);
+//         return OK(res, {}, "Sidebar deleted successfully");
+//       }
+
+//       // DELETE FROM SIDEBAR3
+//       deleted = (await SidebarModel3.findByIdAndDelete(id)) as any;
+//       if (deleted) {
+//         if (deleted?.image) await deleteFileFromS3(deleted?.image);
+//         await reorderItems(SidebarModel3);
+//         return OK(res, {}, "Sidebar deleted successfully");
+//       }
+
+//       return NOT_FOUND(res, "Sidebar not found");
+//     } catch (error) {
+//       return INTERNAL_SERVER_ERROR(res, error);
+//     }
+//   }
+// );
+
 router.delete(
   "/sidebar/:id",
   checkUserAuth,
@@ -328,26 +365,45 @@ router.delete(
     try {
       const { id } = req.params;
 
-      // DELETE FROM SIDEBAR1
-      let deleted: any = (await SidebarModel1.findByIdAndDelete(id)) as any;
-      if (deleted) {
+      // Attempt deletion from all models in parallel
+      const [deleted1, deleted2, deleted3] = await Promise.all([
+        SidebarModel1.findByIdAndDelete(id),
+        SidebarModel2.findByIdAndDelete(id),
+        SidebarModel3.findByIdAndDelete(id),
+      ]);
+
+      // Determine which model had the item and handle cleanup
+      if (deleted1) {
         await reorderItems(SidebarModel1);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
-      // DELETE FROM SIDEBAR2
-      deleted = (await SidebarModel2.findByIdAndDelete(id)) as any;
-      if (deleted) {
-        if (deleted?.image) await deleteFileFromS3(deleted?.image);
-        await reorderItems(SidebarModel2);
+      if (deleted2) {
+        const cleanupTasks = [reorderItems(SidebarModel2)];
+        if (deleted2.image) {
+          await Promise.all([
+            reorderItems(SidebarModel2),
+            deleteFileFromS3(deleted2.image),
+          ]);
+        } else {
+          await reorderItems(SidebarModel2);
+        }
+
+        await Promise.all(cleanupTasks);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
-      // DELETE FROM SIDEBAR3
-      deleted = (await SidebarModel3.findByIdAndDelete(id)) as any;
-      if (deleted) {
-        if (deleted?.image) await deleteFileFromS3(deleted?.image);
-        await reorderItems(SidebarModel3);
+      if (deleted3) {
+        const cleanupTasks = [reorderItems(SidebarModel3)];
+        if (deleted3.image) {
+          await Promise.all([
+            reorderItems(SidebarModel3),
+            deleteFileFromS3(deleted3.image),
+          ]);
+        } else {
+          await reorderItems(SidebarModel3);
+        }
+        await Promise.all(cleanupTasks);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
@@ -730,7 +786,7 @@ router.post(
         req.body;
 
       if (!id) return NOT_FOUND(res, "Style guide ID is required");
-      const styleGuid : any = await StyleGuidModel.findById(id);
+      const styleGuid: any = await StyleGuidModel.findById(id);
 
       if (!styleGuid) {
         return NOT_FOUND(res, "Style guide not found");
@@ -755,7 +811,7 @@ router.post(
           if (!lengthItem) {
             return NOT_FOUND(res, "Length item not found");
           }
-          if( lengthItem.image !== image) {
+          if (lengthItem.image !== image) {
             await deleteFileFromS3(lengthItem.image);
           }
           lengthItem.image = image;
@@ -782,12 +838,12 @@ router.post(
           return OK(res, styleGuid);
         }
       } else if (type === "paring") {
-        if( typeId) {
+        if (typeId) {
           const paringItem = styleGuid.paring.id(typeId);
           if (!paringItem) {
             return NOT_FOUND(res, "Paring item not found");
           }
-          if( paringItem.image !== image) {
+          if (paringItem.image !== image) {
             await deleteFileFromS3(paringItem.image);
           }
           paringItem.image = image;
@@ -801,7 +857,7 @@ router.post(
             title,
             handle: handle || null,
           });
-  
+
           // if (image && styleGuid?.paring?.[0]?.image !== image) {
           // 	await deleteFileFromS3(styleGuid?.paring?.[0]?.image || "");
           // }
