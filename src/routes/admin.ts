@@ -311,13 +311,26 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function reorderItems(model: any) {
-  const items = await model.find({}).sort({ order: 1 });
+async function reorderItems(model: any, parentId: any = null) {
+  const items = await model.find({parent: parentId}).sort({ order: 1 });
 
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].order !== i + 1) {
-      await model.findByIdAndUpdate(items[i]._id, { order: i + 1 });
-    }
+  const bulkOps = items
+    .map((item : any, index: any) => {
+      const newOrder = index + 1;
+      if (item.order !== newOrder) {
+        return {
+          updateOne: {
+            filter: { _id: item._id },
+            update: { $set: { order: newOrder } },
+          },
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (bulkOps.length > 0) {
+    await model.bulkWrite(bulkOps);
   }
 }
 
@@ -374,36 +387,31 @@ router.delete(
 
       // Determine which model had the item and handle cleanup
       if (deleted1) {
-        await reorderItems(SidebarModel1);
+        await reorderItems(SidebarModel1, );
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
       if (deleted2) {
-        const cleanupTasks = [reorderItems(SidebarModel2)];
         if (deleted2.image) {
           await Promise.all([
-            reorderItems(SidebarModel2),
+            reorderItems(SidebarModel2, deleted2?.parent),
             deleteFileFromS3(deleted2.image),
           ]);
         } else {
-          await reorderItems(SidebarModel2);
+          await reorderItems(SidebarModel2, deleted2?.parent);
         }
-
-        await Promise.all(cleanupTasks);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
       if (deleted3) {
-        const cleanupTasks = [reorderItems(SidebarModel3)];
         if (deleted3.image) {
           await Promise.all([
-            reorderItems(SidebarModel3),
+            reorderItems(SidebarModel3, deleted3.parent),
             deleteFileFromS3(deleted3.image),
           ]);
         } else {
-          await reorderItems(SidebarModel3);
+          await reorderItems(SidebarModel3, deleted3.parent);
         }
-        await Promise.all(cleanupTasks);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
