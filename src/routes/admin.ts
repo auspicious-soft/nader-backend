@@ -21,6 +21,7 @@ import { SidebarModel1 } from "../models/sidebar1-schema.js";
 import { error } from "console";
 import { SidebarModel2 } from "../models/sidebar2-schema.js";
 import { SidebarModel3 } from "../models/sidebar3-schema.js";
+import axios from "axios";
 
 // Code
 const router = Router();
@@ -534,7 +535,6 @@ router.put("/homepage", checkUserAuth, async (req: Request, res: Response) => {
     toItem.order = tempOrder;
     const response = await homepage.save();
     return OK(res, response);
-
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
   }
@@ -623,7 +623,6 @@ router.delete(
 );
 
 // Home-head routes
-
 router.post(
   "/homepage-head",
   checkUserAuth,
@@ -727,11 +726,11 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
-      const { title, pointers, description, handle, link, image, id } =
+      const { title, pointers, description, handle, link, image, id, typeId } =
         req.body;
 
       if (!id) return NOT_FOUND(res, "Style guide ID is required");
-      const styleGuid = await StyleGuidModel.findById(id);
+      const styleGuid : any = await StyleGuidModel.findById(id);
 
       if (!styleGuid) {
         return NOT_FOUND(res, "Style guide not found");
@@ -751,32 +750,64 @@ router.post(
         await styleGuid.save();
         return OK(res, styleGuid);
       } else if (type === "length") {
-        styleGuid.lengths.push({
-          image,
-          title,
-          description,
-          pointers: pointers || [],
-          handle: handle || null,
-        });
+        if (typeId) {
+          const lengthItem = styleGuid.lengths.id(typeId);
+          if (!lengthItem) {
+            return NOT_FOUND(res, "Length item not found");
+          }
+          if( lengthItem.image !== image) {
+            await deleteFileFromS3(lengthItem.image);
+          }
+          lengthItem.image = image;
+          lengthItem.title = title || lengthItem.title;
+          lengthItem.description = description || lengthItem.description;
+          lengthItem.pointers = pointers || lengthItem.pointers;
+          lengthItem.handle = handle || lengthItem.handle;
+          await styleGuid.save();
+          return OK(res, styleGuid);
+        } else {
+          styleGuid.lengths.push({
+            image,
+            title,
+            description,
+            pointers: pointers || [],
+            handle: handle || null,
+          });
 
-        // if (image && styleGuid?.lengths?.[0]?.image !== image) {
-        // 	await deleteFileFromS3(styleGuid?.lengths?.[0]?.image || "");
-        // }
+          // if (image && styleGuid?.lengths?.[0]?.image !== image) {
+          // 	await deleteFileFromS3(styleGuid?.lengths?.[0]?.image || "");
+          // }
 
-        await styleGuid.save();
-        return OK(res, styleGuid);
+          await styleGuid.save();
+          return OK(res, styleGuid);
+        }
       } else if (type === "paring") {
-        styleGuid.paring.push({
-          image,
-          title,
-          handle: handle || null,
-        });
-
-        // if (image && styleGuid?.paring?.[0]?.image !== image) {
-        // 	await deleteFileFromS3(styleGuid?.paring?.[0]?.image || "");
-        // }
-        await styleGuid.save();
-        return OK(res, styleGuid);
+        if( typeId) {
+          const paringItem = styleGuid.paring.id(typeId);
+          if (!paringItem) {
+            return NOT_FOUND(res, "Paring item not found");
+          }
+          if( paringItem.image !== image) {
+            await deleteFileFromS3(paringItem.image);
+          }
+          paringItem.image = image;
+          paringItem.title = title || paringItem.title;
+          paringItem.handle = handle || paringItem.handle;
+          await styleGuid.save();
+          return OK(res, styleGuid);
+        } else {
+          styleGuid.paring.push({
+            image,
+            title,
+            handle: handle || null,
+          });
+  
+          // if (image && styleGuid?.paring?.[0]?.image !== image) {
+          // 	await deleteFileFromS3(styleGuid?.paring?.[0]?.image || "");
+          // }
+          await styleGuid.save();
+          return OK(res, styleGuid);
+        }
       } else if (type === "feature") {
         console.log("image: ", image);
         styleGuid.featureImgURL = image;
@@ -861,7 +892,6 @@ router.delete(
 );
 
 // Upload to S3 route
-
 router.post(
   "/upload",
   checkUserAuth,
@@ -900,5 +930,172 @@ router.post(
     }
   }
 );
+
+// Promo Codes route
+router.post("/promocode", async (req: Request, res: Response) => {
+  try {
+    let {
+      title,
+      target_type,
+      target_selection,
+      allocation_method,
+      value_type,
+      value,
+      usage_limit,
+      starts_at,
+      ends_at,
+      code,
+    } = req.body;
+
+    value = Number(value);
+    usage_limit = usage_limit ? Number(usage_limit) : null;
+
+    // ---------- VALIDATIONS ----------
+    if (!title || !code) {
+      return BADREQUEST(res, "Title and code are required.");
+    }
+
+    const allowedTargetTypes = ["line_item", "shipping_line"];
+    if (!allowedTargetTypes.includes(target_type)) {
+      return BADREQUEST(res, "Invalid target_type.");
+    }
+
+    const allowedTargetSelections = ["all", "entitled"];
+    if (!allowedTargetSelections.includes(target_selection)) {
+      return BADREQUEST(res, "Invalid target_selection.");
+    }
+
+    const allowedAllocMethods = ["across", "each"];
+    if (!allowedAllocMethods.includes(allocation_method)) {
+      return BADREQUEST(res, "Invalid allocation_method.");
+    }
+
+    const allowedValueTypes = ["percentage", "fixed_amount"];
+    if (!allowedValueTypes.includes(value_type)) {
+      return BADREQUEST(res, "Invalid value_type.");
+    }
+
+    // Value validations
+    if (typeof value !== "number" || value <= 0) {
+      return BADREQUEST(res, "Value must be a positive number.");
+    }
+
+    if (value_type === "percentage" && (value < 1 || value > 99)) {
+      return BADREQUEST(res, "Percentage discount must be between 1 and 99.");
+    }
+
+    // date validation
+    if (!starts_at || !ends_at)
+      return BADREQUEST(res, "starts_at and ends_at are required.");
+
+    const startUTC = new Date(starts_at);
+    const endUTC = new Date(ends_at);
+
+    if (isNaN(startUTC.getTime()) || isNaN(endUTC.getTime())) {
+      return BADREQUEST(res, "Invalid UTC date format.");
+    }
+
+    if (startUTC >= endUTC) {
+      return BADREQUEST(res, "starts_at must be before ends_at.");
+    }
+
+    // Shopify requires discount value to be NEGATIVE
+    const shopifyValue = -Math.abs(value);
+
+    // ---------- CREATE PRICE RULE IN SHOPIFY ----------
+    const priceRulePayload = {
+      price_rule: {
+        title,
+        target_type,
+        target_selection,
+        allocation_method,
+        value_type,
+        value: `${shopifyValue.toFixed(1)}`, // Shopify wants string
+        usage_limit: usage_limit || null,
+        customer_selection: "all",
+        starts_at: startUTC.toISOString(),
+        ends_at: endUTC.toISOString(),
+      },
+    };
+
+    console.log(
+      priceRulePayload,
+      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`
+    );
+
+    const priceRuleResponse = await axios.post(
+      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
+      priceRulePayload,
+      {
+        headers: {
+          "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+        },
+      }
+    );
+
+    const priceRuleId = priceRuleResponse.data.price_rule.id;
+
+    // ---------- CREATE DISCOUNT CODE ----------
+    const discountPayload = {
+      discount_code: { code },
+    };
+
+    const discountResponse = await axios.post(
+      `${process.env.SHOPIFY_ADMIN_API_URL}/price_rules/${priceRuleId}/discount_codes.json`,
+      discountPayload,
+      {
+        headers: {
+          "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+        },
+      }
+    );
+
+    return OK(res, {
+      message: "Promocode created successfully",
+      price_rule: priceRuleResponse.data.price_rule,
+      discount_code: discountResponse.data.discount_code,
+    });
+  } catch (error: any) {
+    return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
+  }
+});
+
+// Get all coupons with their price rules
+router.get("/promocode", async (req, res) => {
+  try {
+    const headers = {
+      "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+      "Content-Type": "application/json",
+    };
+
+    // 1. Fetch price rules
+    const rulesRes = await axios.get(
+      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
+      { headers }
+    );
+
+    const priceRules = rulesRes.data.price_rules;
+
+    // 2. Fetch discount codes for each rule
+    const coupons = [];
+
+    for (const rule of priceRules) {
+      const codesRes = await axios.get(
+        `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
+        { headers }
+      );
+
+      coupons.push({
+        rule,
+        discount_codes: codesRes.data.discount_codes,
+      });
+    }
+
+    return OK(res, coupons);
+  } catch (err: any) {
+    console.log(err.response?.data || err);
+    return INTERNAL_SERVER_ERROR(res, err);
+  }
+});
 
 export { router as admin };
