@@ -312,10 +312,10 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
 });
 
 async function reorderItems(model: any, parentId: any = null) {
-  const items = await model.find({parent: parentId}).sort({ order: 1 });
+  const items = await model.find({ parent: parentId }).sort({ order: 1 });
 
   const bulkOps = items
-    .map((item : any, index: any) => {
+    .map((item: any, index: any) => {
       const newOrder = index + 1;
       if (item.order !== newOrder) {
         return {
@@ -387,7 +387,7 @@ router.delete(
 
       // Determine which model had the item and handle cleanup
       if (deleted1) {
-        await reorderItems(SidebarModel1, );
+        await reorderItems(SidebarModel1);
         return OK(res, {}, "Sidebar deleted successfully");
       }
 
