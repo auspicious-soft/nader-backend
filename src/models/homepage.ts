@@ -20,6 +20,7 @@ const HomepageSchema: Schema<IHomepage> = new Schema(
         title: { type: String, required: true },
         description: { type: String, required: true },
         handle: { type: String, required: true },
+        order: { type: Number, default: 0 },
       },
     ],
     styles: [
@@ -27,6 +28,7 @@ const HomepageSchema: Schema<IHomepage> = new Schema(
         image: { type: String, required: true },
         title: { type: String, required: true },
         handle: { type: String, required: true },
+        order: { type: Number, default: 0 },
       },
     ],
     fabrics: [
@@ -35,6 +37,7 @@ const HomepageSchema: Schema<IHomepage> = new Schema(
         title: { type: String, required: true },
         fabricName: { type: String, required: true },
         handle: { type: String, required: true },
+        order: { type: Number, default: 0 },
       },
     ],
   },

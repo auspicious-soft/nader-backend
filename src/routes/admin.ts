@@ -289,10 +289,10 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
       return BADREQUEST(res, "Invalid Type");
     }
 
-    if(from.id === to.id){
+    if (from.id === to.id) {
       return OK(res, {});
     }
-    
+
     if (type === 1) {
       await SidebarModel1.findByIdAndUpdate(from.id, { order: to.order });
       await SidebarModel1.findByIdAndUpdate(to.id, { order: from.order });
@@ -310,6 +310,16 @@ router.patch("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   }
 });
 
+async function reorderItems(model: any) {
+  const items = await model.find({}).sort({ order: 1 });
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].order !== i + 1) {
+      await model.findByIdAndUpdate(items[i]._id, { order: i + 1 });
+    }
+  }
+}
+
 router.delete(
   "/sidebar/:id",
   checkUserAuth,
@@ -317,27 +327,30 @@ router.delete(
     try {
       const { id } = req.params;
 
-      const deleteItems = await SidebarModel1.findByIdAndDelete(id);
-      if (!deleteItems) {
-        const deleteItems2 = await SidebarModel2.findByIdAndDelete(id);
-        if (!deleteItems2) {
-          const deleteItems3 = await SidebarModel3.findByIdAndDelete(id);
-          if (!deleteItems3) {
-            return NOT_FOUND(res, "Sidebar not found");
-          }
-          const sidebar3 = deleteItems3 as any;
-          if (sidebar3?.image) await deleteFileFromS3(sidebar3?.image);
-          return OK(res, {}, "Sidebar deleted successfully");
-        }
-        const sidebar2 = deleteItems2 as any;
-        if (sidebar2?.image) await deleteFileFromS3(sidebar2?.image);
+      // DELETE FROM SIDEBAR1
+      let deleted: any = (await SidebarModel1.findByIdAndDelete(id)) as any;
+      if (deleted) {
+        await reorderItems(SidebarModel1);
         return OK(res, {}, "Sidebar deleted successfully");
       }
-      const sidebar = deleteItems as any;
 
-      if (sidebar?.image) await deleteFileFromS3(sidebar?.image);
+      // DELETE FROM SIDEBAR2
+      deleted = (await SidebarModel2.findByIdAndDelete(id)) as any;
+      if (deleted) {
+        if (deleted?.image) await deleteFileFromS3(deleted?.image);
+        await reorderItems(SidebarModel2);
+        return OK(res, {}, "Sidebar deleted successfully");
+      }
 
-      return OK(res, {}, "Sidebar deleted successfully");
+      // DELETE FROM SIDEBAR3
+      deleted = (await SidebarModel3.findByIdAndDelete(id)) as any;
+      if (deleted) {
+        if (deleted?.image) await deleteFileFromS3(deleted?.image);
+        await reorderItems(SidebarModel3);
+        return OK(res, {}, "Sidebar deleted successfully");
+      }
+
+      return NOT_FOUND(res, "Sidebar not found");
     } catch (error) {
       return INTERNAL_SERVER_ERROR(res, error);
     }
@@ -347,9 +360,31 @@ router.delete(
 // Homepage routes
 router.get("/homepage", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const response = await HomepageModel.findOne()
+    let response: any = await HomepageModel.findOne()
       .select("-id -__v -createdAt -updatedAt")
       .lean();
+
+    if (!response) return OK(res, {});
+
+    // Sort arrays by "order" field
+    if (response.banners?.length) {
+      response.banners = response.banners.sort(
+        (a: any, b: any) => (a.order || 0) - (b.order || 0)
+      );
+    }
+
+    if (response.styles?.length) {
+      response.styles = response.styles.sort(
+        (a: any, b: any) => (a.order || 0) - (b.order || 0)
+      );
+    }
+
+    if (response.fabrics?.length) {
+      response.fabrics = response.fabrics.sort(
+        (a: any, b: any) => (a.order || 0) - (b.order || 0)
+      );
+    }
+
     return OK(res, response);
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
@@ -365,14 +400,19 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
       await HomepageModel.create({
         banners: [],
         styles: [],
+        fabrics: [],
       });
     }
+
+    const getNextOrder = (arr: any[]) => (arr?.length || 0) + 1;
+
     if (type === "banner") {
+      const nextOrder = getNextOrder(checkHomeExist?.banners || []);
       const response = await HomepageModel.findOneAndUpdate(
         {},
         {
           $push: {
-            banners: { title, description, image, handle },
+            banners: { title, description, image, handle, order: nextOrder },
           },
         },
         { new: true }
@@ -380,16 +420,22 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
 
       return OK(res, response);
     } else if (type === "style") {
+      const nextOrder = getNextOrder(checkHomeExist?.styles || []);
       const response = await HomepageModel.findOneAndUpdate(
         {},
-        { $push: { styles: { title, image, handle } } },
+        { $push: { styles: { title, image, handle, order: nextOrder } } },
         { new: true }
       ).select("-id -__v -createdAt -updatedAt");
       return OK(res, response);
     } else if (type === "fabric") {
+      const nextOrder = getNextOrder(checkHomeExist?.fabrics || []);
       const response = await HomepageModel.findOneAndUpdate(
         {},
-        { $push: { fabrics: { title, image, handle, fabricName } } },
+        {
+          $push: {
+            fabrics: { title, image, handle, fabricName, order: nextOrder },
+          },
+        },
         { new: true }
       ).select("-id -__v -createdAt -updatedAt");
       return OK(res, response);
@@ -408,67 +454,168 @@ router.post("/homepage", checkUserAuth, async (req: Request, res: Response) => {
   }
 });
 
+router.patch(
+  "/homepage",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { type } = req.query;
+
+      const { id, title, description, image, handle, fabricName } = req.body;
+
+      if (!id) return NOT_FOUND(res, "ID is required");
+
+      if (type === "banner") {
+        const homepage: any = await HomepageModel.findOne();
+        const banner = homepage.banners.id(id);
+        if (!banner) return NOT_FOUND(res, "Banner not found");
+        if (banner.image !== image) {
+          if (banner.image) await deleteFileFromS3(banner.image);
+        }
+        banner.title = title || banner.title;
+        banner.description = description || banner.description;
+        banner.image = image || banner.image;
+        banner.handle = handle || banner.handle;
+        const response = await homepage.save();
+        return OK(res, response);
+      } else if (type === "style") {
+        const homepage: any = await HomepageModel.findOne();
+        const style = homepage.styles.id(id);
+        if (!style) return NOT_FOUND(res, "Style not found");
+        if (style.image !== image) {
+          if (style.image) await deleteFileFromS3(style.image);
+        }
+        style.title = title || style.title;
+        style.image = image || style.image;
+        style.handle = handle || style.handle;
+        const response = await homepage.save();
+        return OK(res, response);
+      } else if (type === "fabric") {
+        const homepage: any = await HomepageModel.findOne();
+        const fabric = homepage.fabrics.id(id);
+        if (!fabric) return NOT_FOUND(res, "Fabric not found");
+        if (fabric.image !== image) {
+          if (fabric.image) await deleteFileFromS3(fabric.image);
+        }
+        fabric.title = title || fabric.title;
+        fabric.image = image || fabric.image;
+        fabric.handle = handle || fabric.handle;
+        fabric.fabricName = fabricName || fabric.fabricName;
+        const response = await homepage.save();
+        return OK(res, response);
+      } else {
+        return NOT_FOUND(res, "Valid type is required");
+      }
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.put("/homepage", checkUserAuth, async (req: Request, res: Response) => {
+  try {
+    const { type, from = {}, to = {} } = req.body;
+    if (!["banners", "styles", "fabrics"].includes(type)) {
+      return BADREQUEST(res, "Invalid Type");
+    }
+
+    if (from.id === to.id) {
+      return OK(res, {});
+    }
+
+    const homepage: any = await HomepageModel.findOne();
+    const fromItem = homepage[type].id(from.id);
+    const toItem = homepage[type].id(to.id);
+    if (!fromItem || !toItem) {
+      return NOT_FOUND(res, `${type.slice(0, -1)} not found`);
+    }
+    const tempOrder = fromItem.order;
+    fromItem.order = toItem.order;
+    toItem.order = tempOrder;
+    const response = await homepage.save();
+    return OK(res, response);
+
+  } catch (error) {
+    return INTERNAL_SERVER_ERROR(res, error);
+  }
+});
+
+async function reorderHomepageArray(modelArray: any[]) {
+  return modelArray
+    .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+    .map((item: any, index: number) => ({
+      ...item,
+      order: index + 1,
+    }));
+}
+
 router.delete(
   "/homepage",
   checkUserAuth,
   async (req: Request, res: Response) => {
     try {
       const { type, id } = req.query;
+
       if (!id) return NOT_FOUND(res, "ID is required");
+
+      let homepage: any = await HomepageModel.findOne();
+      if (!homepage) return NOT_FOUND(res, "Homepage not found");
+
+      // 🟢 DELETE BANNER
       if (type === "banner") {
-        const deletedImage = (await HomepageModel.findOne(
-          { "banners._id": id },
-          { "banners.$": 1 }
-        ).lean()) as any;
+        const selected = homepage.banners.find(
+          (b: any) => b._id.toString() === id
+        );
+        if (!selected) return NOT_FOUND(res, "Banner not found");
 
-        if (deletedImage?.banners[0]?.image)
-          await deleteFileFromS3(deletedImage?.banners[0]?.image);
-        else return NOT_FOUND(res, "Banner image not found");
+        if (selected.image) await deleteFileFromS3(selected.image);
 
-        const response = (await HomepageModel.findOneAndUpdate(
-          {},
-          { $pull: { banners: { _id: id } } },
-          { new: true }
-        ).select("-id -__v -createdAt -updatedAt")) as any;
+        homepage.banners = homepage.banners.filter(
+          (b: any) => b._id.toString() !== id
+        );
 
-        return OK(res, response);
-      } else if (type === "style") {
-        const deletedImage = (await HomepageModel.findOne(
-          { "styles._id": id },
-          { "styles.$": 1 }
-        ).lean()) as any;
-
-        if (deletedImage?.styles[0]?.image)
-          await deleteFileFromS3(deletedImage?.styles[0]?.image);
-        else return NOT_FOUND(res, "Style image not found");
-
-        const response = await HomepageModel.findOneAndUpdate(
-          {},
-          { $pull: { styles: { _id: id } } },
-          { new: true }
-        ).select("-id -__v -createdAt -updatedAt");
-
-        return OK(res, response);
-      } else if (type === "fabric") {
-        const deletedImage = (await HomepageModel.findOne(
-          { "fabrics._id": id },
-          { "fabrics.$": 1 }
-        ).lean()) as any;
-
-        if (deletedImage?.fabrics[0]?.image)
-          await deleteFileFromS3(deletedImage?.fabrics[0]?.image);
-        else return NOT_FOUND(res, "Fabric image not found");
-
-        const response = await HomepageModel.findOneAndUpdate(
-          {},
-          { $pull: { fabrics: { _id: id } } },
-          { new: true }
-        ).select("-id -__v -createdAt -updatedAt");
-
-        return OK(res, response);
-      } else {
-        return NOT_FOUND(res, "Valid type is required");
+        homepage.banners = await reorderHomepageArray(homepage.banners);
       }
+
+      // 🟢 DELETE STYLE
+      else if (type === "style") {
+        const selected = homepage.styles.find(
+          (s: any) => s._id.toString() === id
+        );
+        if (!selected) return NOT_FOUND(res, "Style not found");
+
+        if (selected.image) await deleteFileFromS3(selected.image);
+
+        homepage.styles = homepage.styles.filter(
+          (s: any) => s._id.toString() !== id
+        );
+
+        homepage.styles = await reorderHomepageArray(homepage.styles);
+      }
+
+      // 🟢 DELETE FABRIC
+      else if (type === "fabric") {
+        const selected = homepage.fabrics.find(
+          (f: any) => f._id.toString() === id
+        );
+        if (!selected) return NOT_FOUND(res, "Fabric not found");
+
+        if (selected.image) await deleteFileFromS3(selected.image);
+
+        homepage.fabrics = homepage.fabrics.filter(
+          (f: any) => f._id.toString() !== id
+        );
+
+        homepage.fabrics = await reorderHomepageArray(homepage.fabrics);
+      }
+
+      // ❌ INVALID TYPE
+      else {
+        return NOT_FOUND(res, "Valid type is required (banner/style/fabric)");
+      }
+
+      const response = await homepage.save();
+      return OK(res, response);
     } catch (error) {
       return INTERNAL_SERVER_ERROR(res, error);
     }
