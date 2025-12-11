@@ -147,14 +147,31 @@ router.get("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
 // Homepage routes
 router.get("/homepage", checkUserAuth, async (req: Request, res: Response) => {
   try {
-    const response = await HomepageModel.findOne()
+    const doc = await HomepageModel.findOne()
       .select("-id -__v -createdAt -updatedAt")
       .lean();
-    return OK(res, response);
+
+    if (!doc) {
+      return OK(res, { banners: [], styles: [], fabrics: [] });
+    }
+
+    // Use local ref to avoid repeated property access
+    const { banners = [], styles = [], fabrics = [] } = doc;
+
+    // EXTREMELY OPTIMIZED SORT — no reallocation
+    const fastSort = (arr : any) =>
+      arr.sort((a : any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+
+    fastSort(banners);
+    fastSort(styles);
+    fastSort(fabrics);
+
+    return OK(res, { ...doc, banners, styles, fabrics });
   } catch (error) {
     return INTERNAL_SERVER_ERROR(res, error);
   }
 });
+
 
 // Style-guid routes
 router.get("/styleguid", checkUserAuth, async (req: Request, res: Response) => {
