@@ -1031,9 +1031,137 @@ router.post(
 );
 
 // Promo Codes route
+// router.post("/promocode1", async (req: Request, res: Response) => {
+//   try {
+//     let {
+//       title,
+//       target_type,
+//       target_selection,
+//       allocation_method,
+//       value_type,
+//       value,
+//       usage_limit,
+//       starts_at,
+//       ends_at,
+//       code,
+//     } = req.body;
+
+//     value = Number(value);
+//     usage_limit = usage_limit ? Number(usage_limit) : null;
+
+//     // ---------- VALIDATIONS ----------
+//     if (!title || !code) {
+//       return BADREQUEST(res, "Title and code are required.");
+//     }
+
+//     const allowedTargetTypes = ["line_item", "shipping_line"];
+//     if (!allowedTargetTypes.includes(target_type)) {
+//       return BADREQUEST(res, "Invalid target_type.");
+//     }
+
+//     const allowedTargetSelections = ["all", "entitled"];
+//     if (!allowedTargetSelections.includes(target_selection)) {
+//       return BADREQUEST(res, "Invalid target_selection.");
+//     }
+
+//     const allowedAllocMethods = ["across", "each"];
+//     if (!allowedAllocMethods.includes(allocation_method)) {
+//       return BADREQUEST(res, "Invalid allocation_method.");
+//     }
+
+//     const allowedValueTypes = ["percentage", "fixed_amount"];
+//     if (!allowedValueTypes.includes(value_type)) {
+//       return BADREQUEST(res, "Invalid value_type.");
+//     }
+
+//     // Value validations
+//     if (typeof value !== "number" || value <= 0) {
+//       return BADREQUEST(res, "Value must be a positive number.");
+//     }
+
+//     if (value_type === "percentage" && (value < 1 || value > 99)) {
+//       return BADREQUEST(res, "Percentage discount must be between 1 and 99.");
+//     }
+
+//     // date validation
+//     if (!starts_at || !ends_at)
+//       return BADREQUEST(res, "starts_at and ends_at are required.");
+
+//     const startUTC = new Date(starts_at);
+//     const endUTC = new Date(ends_at);
+
+//     if (isNaN(startUTC.getTime()) || isNaN(endUTC.getTime())) {
+//       return BADREQUEST(res, "Invalid UTC date format.");
+//     }
+
+//     if (startUTC >= endUTC) {
+//       return BADREQUEST(res, "starts_at must be before ends_at.");
+//     }
+
+//     // Shopify requires discount value to be NEGATIVE
+//     const shopifyValue = -Math.abs(value);
+
+//     // ---------- CREATE PRICE RULE IN SHOPIFY ----------
+//     const priceRulePayload = {
+//       price_rule: {
+//         title,
+//         target_type,
+//         target_selection,
+//         allocation_method,
+//         value_type,
+//         value: `${shopifyValue.toFixed(1)}`, // Shopify wants string
+//         usage_limit: usage_limit || null,
+//         customer_selection: "all",
+//         starts_at: startUTC.toISOString(),
+//         ends_at: endUTC.toISOString(),
+//       },
+//     };
+
+//     console.log(
+//       priceRulePayload,
+//       `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`
+//     );
+
+//     const priceRuleResponse = await axios.post(
+//       `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
+//       priceRulePayload,
+//       {
+//         headers: {
+//           "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+//         },
+//       }
+//     );
+
+//     const priceRuleId = priceRuleResponse.data.price_rule.id;
+
+//     // ---------- CREATE DISCOUNT CODE ----------
+//     const discountPayload = {
+//       discount_code: { code },
+//     };
+
+//     const discountResponse = await axios.post(
+//       `${process.env.SHOPIFY_ADMIN_API_URL}/price_rules/${priceRuleId}/discount_codes.json`,
+//       discountPayload,
+//       {
+//         headers: {
+//           "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+//         },
+//       }
+//     );
+
+//     return OK(res, {
+//       message: "Promocode created successfully",
+//       price_rule: priceRuleResponse.data.price_rule,
+//       discount_code: discountResponse.data.discount_code,
+//     });
+//   } catch (error: any) {
+//     return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
+//   }
+// });
+
 router.post("/promocode", async (req: Request, res: Response) => {
   try {
-    let {
+    const {
       title,
       target_type,
       target_selection,
@@ -1046,62 +1174,57 @@ router.post("/promocode", async (req: Request, res: Response) => {
       code,
     } = req.body;
 
-    value = Number(value);
-    usage_limit = usage_limit ? Number(usage_limit) : null;
-
-    // ---------- VALIDATIONS ----------
+    // ---------- BASIC VALIDATIONS ----------
     if (!title || !code) {
       return BADREQUEST(res, "Title and code are required.");
     }
 
-    const allowedTargetTypes = ["line_item", "shipping_line"];
-    if (!allowedTargetTypes.includes(target_type)) {
-      return BADREQUEST(res, "Invalid target_type.");
-    }
-
-    const allowedTargetSelections = ["all", "entitled"];
-    if (!allowedTargetSelections.includes(target_selection)) {
-      return BADREQUEST(res, "Invalid target_selection.");
-    }
-
-    const allowedAllocMethods = ["across", "each"];
-    if (!allowedAllocMethods.includes(allocation_method)) {
-      return BADREQUEST(res, "Invalid allocation_method.");
-    }
-
-    const allowedValueTypes = ["percentage", "fixed_amount"];
-    if (!allowedValueTypes.includes(value_type)) {
-      return BADREQUEST(res, "Invalid value_type.");
-    }
-
-    // Value validations
-    if (typeof value !== "number" || value <= 0) {
-      return BADREQUEST(res, "Value must be a positive number.");
-    }
-
-    if (value_type === "percentage" && (value < 1 || value > 99)) {
-      return BADREQUEST(res, "Percentage discount must be between 1 and 99.");
-    }
-
-    // date validation
-    if (!starts_at || !ends_at)
+    if (!starts_at || !ends_at) {
       return BADREQUEST(res, "starts_at and ends_at are required.");
+    }
 
+    const allowedTargetTypes = ["line_item", "shipping_line"];
+    const allowedTargetSelections = ["all", "entitled"];
+    const allowedAllocMethods = ["across", "each"];
+    const allowedValueTypes = ["percentage", "fixed_amount"];
+
+    if (!allowedTargetTypes.includes(target_type))
+      return BADREQUEST(res, "Invalid target_type.");
+
+    if (!allowedTargetSelections.includes(target_selection))
+      return BADREQUEST(res, "Invalid target_selection.");
+
+    if (!allowedAllocMethods.includes(allocation_method))
+      return BADREQUEST(res, "Invalid allocation_method.");
+
+    if (!allowedValueTypes.includes(value_type))
+      return BADREQUEST(res, "Invalid value_type.");
+
+    const numericValue = Number(value);
+    if (!numericValue || numericValue <= 0)
+      return BADREQUEST(res, "Value must be a positive number.");
+
+    if (value_type === "percentage" && (numericValue < 1 || numericValue > 99))
+      return BADREQUEST(res, "Percentage must be between 1 and 99.");
+
+    const usageLimitNumber = usage_limit ? Number(usage_limit) : null;
+
+    // ---------- DATE VALIDATION ----------
     const startUTC = new Date(starts_at);
     const endUTC = new Date(ends_at);
 
     if (isNaN(startUTC.getTime()) || isNaN(endUTC.getTime())) {
-      return BADREQUEST(res, "Invalid UTC date format.");
+      return BADREQUEST(res, "Invalid date format.");
     }
 
     if (startUTC >= endUTC) {
       return BADREQUEST(res, "starts_at must be before ends_at.");
     }
 
-    // Shopify requires discount value to be NEGATIVE
-    const shopifyValue = -Math.abs(value);
+    // Shopify requires NEGATIVE discount value internally
+    const shopifyValue = -Math.abs(numericValue);
 
-    // ---------- CREATE PRICE RULE IN SHOPIFY ----------
+    // ---------- PRICE RULE PAYLOAD ----------
     const priceRulePayload = {
       price_rule: {
         title,
@@ -1109,25 +1232,32 @@ router.post("/promocode", async (req: Request, res: Response) => {
         target_selection,
         allocation_method,
         value_type,
-        value: `${shopifyValue.toFixed(1)}`, // Shopify wants string
-        usage_limit: usage_limit || null,
+        value: shopifyValue.toString(), // Shopify requires string
+        usage_limit: usageLimitNumber,
         customer_selection: "all",
         starts_at: startUTC.toISOString(),
         ends_at: endUTC.toISOString(),
       },
     };
 
-    console.log(
-      priceRulePayload,
-      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`
-    );
+    const BASE_URL = process.env.SHOPIFY_ADMIN_API_BASE_URL;
+    const TOKEN = process.env.X_SHOPIFY_ACESS_TOKEN;
 
+    if (!BASE_URL || !TOKEN) {
+      return INTERNAL_SERVER_ERROR(
+        res,
+        "Missing Shopify environment variables"
+      );
+    }
+
+    // ---------- CREATE PRICE RULE ----------
     const priceRuleResponse = await axios.post(
-      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
+      `${BASE_URL}/price_rules.json`,
       priceRulePayload,
       {
         headers: {
-          "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+          "X-Shopify-Access-Token": TOKEN,
+          "Content-Type": "application/json",
         },
       }
     );
@@ -1140,11 +1270,12 @@ router.post("/promocode", async (req: Request, res: Response) => {
     };
 
     const discountResponse = await axios.post(
-      `${process.env.SHOPIFY_ADMIN_API_URL}/price_rules/${priceRuleId}/discount_codes.json`,
+      `${BASE_URL}/price_rules/${priceRuleId}/discount_codes.json`,
       discountPayload,
       {
         headers: {
-          "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+          "X-Shopify-Access-Token": TOKEN,
+          "Content-Type": "application/json",
         },
       }
     );
@@ -1155,6 +1286,7 @@ router.post("/promocode", async (req: Request, res: Response) => {
       discount_code: discountResponse.data.discount_code,
     });
   } catch (error: any) {
+    console.error("Shopify Error: ", error?.response?.data || error);
     return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
   }
 });
@@ -1167,34 +1299,97 @@ router.get("/promocode", async (req, res) => {
       "Content-Type": "application/json",
     };
 
-    // 1. Fetch price rules
+    // 1. Fetch ALL price rules
     const rulesRes = await axios.get(
       `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
       { headers }
     );
 
-    const priceRules = rulesRes.data.price_rules;
+    const priceRules = rulesRes.data.price_rules || [];
 
-    // 2. Fetch discount codes for each rule
-    const coupons = [];
+    if (priceRules.length === 0) {
+      return OK(res, []);
+    }
 
-    for (const rule of priceRules) {
+    // 2. Parallel requests for all discount codes
+    const discountRequests = priceRules.map((rule: any) =>
+      axios
+        .get(
+          `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
+          { headers }
+        )
+        .then((r) => ({
+          rule,
+          discount_codes: r.data.discount_codes || [],
+        }))
+        .catch(() => ({
+          rule,
+          discount_codes: [],
+        }))
+    );
+
+    // Wait for all calls to finish (parallel execution)
+    const results = await Promise.all(discountRequests);
+
+    // 3. FILTER → remove rules that have 0 discount codes
+    const filtered = results.filter((item) => item.discount_codes.length > 0);
+
+    return OK(res, filtered);
+  } catch (err : any) {
+    console.log(err?.response?.data || err);
+    return INTERNAL_SERVER_ERROR(res, err?.response?.data || err);
+  }
+});
+
+router.delete(
+  "/promocode/:priceRuleId",
+  async (req: Request, res: Response) => {
+    try {
+      const { priceRuleId } = req.params;
+
+      const BASE_URL = process.env.SHOPIFY_ADMIN_API_BASE_URL;
+      const TOKEN = process.env.X_SHOPIFY_ACESS_TOKEN;
+
+      if (!BASE_URL || !TOKEN) {
+        return INTERNAL_SERVER_ERROR(res, "Missing Shopify env variables");
+      }
+
+      const headers = {
+        "X-Shopify-Access-Token": TOKEN,
+        "Content-Type": "application/json",
+      };
+
+      // STEP 1 — Get discount codes inside this rule
       const codesRes = await axios.get(
-        `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
+        `${BASE_URL}/price_rules/${priceRuleId}/discount_codes.json`,
         { headers }
       );
 
-      coupons.push({
-        rule,
-        discount_codes: codesRes.data.discount_codes,
-      });
-    }
+      const discountCodes = codesRes.data.discount_codes;
 
-    return OK(res, coupons);
-  } catch (err: any) {
-    console.log(err.response?.data || err);
-    return INTERNAL_SERVER_ERROR(res, err);
+      // STEP 2 — Delete all discount codes under the rule
+      for (const code of discountCodes) {
+        await axios.delete(
+          `${BASE_URL}/price_rules/${priceRuleId}/discount_codes/${code.id}.json`,
+          { headers }
+        );
+      }
+
+      // STEP 3 — Delete the price rule itself
+      await axios.delete(`${BASE_URL}/price_rules/${priceRuleId}.json`, {
+        headers,
+      });
+
+      return OK(res, {
+        message: "Promocode deleted successfully",
+        deleted_price_rule_id: priceRuleId,
+        deleted_codes: discountCodes.map((c: any) => c.code),
+      });
+    } catch (error: any) {
+      console.error("Delete Promocode Error:", error?.response?.data || error);
+      return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
+    }
   }
-});
+);
 
 export { router as admin };
