@@ -77,6 +77,7 @@ router.get(
 
       const notifications = await notificatonModel
         .find()
+        .sort({ createdAt: -1 })
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit));
 
