@@ -39,12 +39,14 @@ interface SendNotificationParams {
   adminTitle: string;
   adminDescription: string;
   handle: string;
+  handleTitle: string;
 }
 
 export const sendNotification = async ({
   adminTitle,
   adminDescription,
   handle,
+  handleTitle,
 }: SendNotificationParams) => {
   try {
     if (!adminTitle || !adminDescription) {
@@ -76,6 +78,7 @@ export const sendNotification = async ({
       },
       data: {
         handle: handle || "",
+        handleTitle: handleTitle || "",
       },
       tokens,
     };
@@ -92,6 +95,7 @@ export const sendNotification = async ({
       title: adminTitle,
       description: adminDescription,
       handle,
+      handleTitle,
       successfullySent: response.successCount,
       failedToSend: response.failureCount,
     });

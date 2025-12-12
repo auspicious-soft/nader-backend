@@ -9,6 +9,9 @@ const notificationSchema = new Schema(
     description: {
       type: String,
     },
+    handleTitle: {
+      type: String,
+    },
     handle: {
       type: String,
     },

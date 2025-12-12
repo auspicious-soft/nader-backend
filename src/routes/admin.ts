@@ -54,11 +54,12 @@ router.post(
   checkUserAuth,
   async (req: Request, res: Response) => {
     try {
-      const { title, description, handle } = req.body;
+      const { title, description, handle, handleTitle } = req.body;
       await sendNotification({
         adminTitle: title,
         adminDescription: description,
         handle: handle || "",
+        handleTitle: handleTitle || "",
       });
       return OK(res, {}, "Notifications sent successfully");
     } catch (error) {
