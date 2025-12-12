@@ -1311,25 +1311,38 @@ router.get("/promocode", async (req, res) => {
       return OK(res, []);
     }
 
-    // 2. Parallel requests for all discount codes
-    const discountRequests = priceRules.map((rule: any) =>
-      axios
-        .get(
+ 
+const wait = (ms: number) => new Promise((res) => res(ms));
+
+const batchSize = 3;
+let results: any[] = [];
+
+for (let i = 0; i < priceRules.length; i += batchSize) {
+  const batch = priceRules.slice(i, i + batchSize);
+
+  const batchResults = await Promise.all(
+    batch.map(async (rule: any) => {
+      try {
+        const r = await axios.get(
           `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
           { headers }
-        )
-        .then((r) => ({
-          rule,
-          discount_codes: r.data.discount_codes || [],
-        }))
-        .catch(() => ({
-          rule,
-          discount_codes: [],
-        }))
-    );
+        );
 
-    // Wait for all calls to finish (parallel execution)
-    const results = await Promise.all(discountRequests);
+        return { rule, discount_codes: r.data.discount_codes || [] };
+      } catch (err) {
+        console.log("Rate-limit hit for rule:", rule.id);
+        await wait(500);
+        return { rule, discount_codes: [] };
+      }
+    })
+  );
+
+  results = results.concat(batchResults);
+
+  // wait between batches to avoid Shopify throttling
+  await wait(300);
+}
+
 
     // 3. FILTER → remove rules that have 0 discount codes
     const filtered = results.filter((item) => item.discount_codes.length > 0);
