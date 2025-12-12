@@ -82,6 +82,7 @@ jobs:
               -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
               -e AWS_BUCKET_NAME='${{ secrets.AWS_BUCKET_NAME }}' \
               -e AWS_BUCKET_URL='${{ secrets.AWS_BUCKET_URL }}' \
+              -e FIREBASE_SERVICE_ACCOUNT='${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' \
               ${{ secrets.DOCKER_USERNAME }}/nader-backend:latest || { echo 'Docker run failed'; exit 1; }
 
             echo 'Container running successfully'

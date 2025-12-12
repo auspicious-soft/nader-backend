@@ -22,6 +22,7 @@ import { error } from "console";
 import { SidebarModel2 } from "../models/sidebar2-schema.js";
 import { SidebarModel3 } from "../models/sidebar3-schema.js";
 import axios from "axios";
+import { notificatonModel } from "../models/notification-schema.js";
 
 // Code
 const router = Router();
@@ -48,6 +49,55 @@ const checkUserAuth = async (
   }
 };
 
+router.post(
+  "/notifications",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { title, description, handle } = req.body;
+      await sendNotification({
+        adminTitle: title,
+        adminDescription: description,
+        handle: handle || "",
+      });
+      return OK(res, {}, "Notifications sent successfully");
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
+router.get(
+  "/notifications",
+  checkUserAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 25 } = req.query;
+
+      const notifications = await notificatonModel
+        .find()
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+
+      const totalCount = await notificatonModel.countDocuments();
+
+      return OK(
+        res,
+        {
+          notifications,
+          totalCount,
+          activePage: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(totalCount / Number(limit)),
+        },
+        "Notifications sent successfully"
+      );
+    } catch (error) {
+      return INTERNAL_SERVER_ERROR(res, error);
+    }
+  }
+);
+
 // Sidebar routes
 router.get("/dropdown", checkUserAuth, async (req: Request, res: Response) => {
   try {
@@ -64,23 +114,6 @@ router.get("/dropdown", checkUserAuth, async (req: Request, res: Response) => {
     return INTERNAL_SERVER_ERROR(res, error);
   }
 });
-
-router.post(
-  "/notifications",
-  checkUserAuth,
-  async (req: Request, res: Response) => {
-    try {
-      const { title, description } = req.body;
-      await sendNotification({
-        adminTitle: title,
-        adminDescription: description,
-      });
-      return OK(res, {}, "Notifications sent successfully");
-    } catch (error) {
-      return INTERNAL_SERVER_ERROR(res, error);
-    }
-  }
-);
 
 router.post("/sidebar", checkUserAuth, async (req: Request, res: Response) => {
   try {

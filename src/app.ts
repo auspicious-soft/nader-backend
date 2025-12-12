@@ -8,6 +8,7 @@ import connectDB from "./config/db.js";
 import { auth } from "./routes/auth.js";
 import { admin } from "./routes/admin.js";
 import { user } from "./routes/user.js";
+import { initializeFirebase } from "./utils/FCM.js";
 
 // Load environment variables
 dotenv.config();
@@ -15,6 +16,8 @@ dotenv.config();
 // Create __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+initializeFirebase()
 
 const PORT = ENV.PORT || 8000;
 const app = express();
