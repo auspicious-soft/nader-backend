@@ -1363,8 +1363,11 @@ router.get("/promocode", async (req, res) => {
       .limit(Number(limit) || 10)
       .sort({ createdAt: -1 })
       .lean();
+    
+    const totalCount = await PromoCodeModel.countDocuments();
+    const totalPage = Math.ceil(totalCount / limit);
 
-    return OK(res, { count: data.length, page, limit, data });
+    return OK(res, { count: totalCount, totalPage, limit, data });
   } catch (err: any) {
     console.log(err?.response?.data || err);
     return INTERNAL_SERVER_ERROR(res, err?.response?.data || err);
