@@ -90,7 +90,7 @@ async function shopifyGet(url: string, retries = 5): Promise<any> {
   }
 }
 
-export async function syncPromoCodes(jobId: string) {
+export async function syncPromoCodes(jobId: string, THIRTY_DAYS_AGO?: string) {
   const job = await SyncJobModel.findById(jobId);
   if (!job) return;
 
@@ -114,11 +114,7 @@ export async function syncPromoCodes(jobId: string) {
     job.startedAt = new Date();
     await job.save();
 
-    const THIRTY_DAYS_AGO = new Date(
-      Date.now() - 30 * 24 * 60 * 60 * 1000
-    ).toISOString();
-
-    let ruleUrl : any =
+    let ruleUrl: any =
       `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json` +
       `?limit=250&created_at_min=${THIRTY_DAYS_AGO}`;
 
@@ -186,8 +182,11 @@ export async function syncPromoCodes(jobId: string) {
   });
   console.warn(runningJob);
   if (!runningJob) {
-    const job : any = await SyncJobModel.create({ status: "PENDING" });
-    syncPromoCodes(job._id.toString());
+    const THIRTY_DAYS_AGO = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const job: any = await SyncJobModel.create({ status: "PENDING" });
+    syncPromoCodes(job._id.toString(), THIRTY_DAYS_AGO);
   }
 })();
 
@@ -200,9 +199,11 @@ cron.schedule(
     });
 
     if (runningJob) return;
-
-    const job : any = await SyncJobModel.create({ status: "PENDING" });
-    syncPromoCodes(job._id.toString());
+    const THIRTY_DAYS_AGO = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const job: any = await SyncJobModel.create({ status: "PENDING" });
+    syncPromoCodes(job._id.toString(), THIRTY_DAYS_AGO);
   },
   { timezone: "Asia/Kolkata" }
 );

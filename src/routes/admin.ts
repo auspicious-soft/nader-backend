@@ -24,6 +24,8 @@ import { SidebarModel3 } from "../models/sidebar3-schema.js";
 import axios from "axios";
 import { notificatonModel } from "../models/notification-schema.js";
 import { PromoCodeModel } from "../models/promocodes-schema.js";
+import { SyncJobModel } from "../models/sync-job-schema.js";
+import { syncPromoCodes } from "../utils/cron.js";
 
 // Code
 const router = Router();
@@ -1281,6 +1283,16 @@ router.post("/promocode", async (req: Request, res: Response) => {
       }
     );
 
+    const runningJob = await SyncJobModel.findOne({
+      status: { $in: ["PENDING", "RUNNING"] },
+    });
+
+    if (runningJob) return;
+
+    const job: any = await SyncJobModel.create({ status: "PENDING" });
+    const TWO_MINUTES_AGO = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    syncPromoCodes(job._id.toString(), TWO_MINUTES_AGO);
+
     return OK(res, {
       message: "Promocode created successfully",
       price_rule: priceRuleResponse.data.price_rule,
@@ -1363,7 +1375,7 @@ router.get("/promocode", async (req, res) => {
       .limit(Number(limit) || 10)
       .sort({ createdAt: -1 })
       .lean();
-    
+
     const totalCount = await PromoCodeModel.countDocuments();
     const totalPage = Math.ceil(totalCount / limit);
 
