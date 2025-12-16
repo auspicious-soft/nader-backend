@@ -1,7 +1,8 @@
 import { configDotenv } from "dotenv";
 import mongoose from "mongoose";
 import { ENV } from "./env.js";
-import { CollectionUpdates } from "../utils/cron.js";
+import { CollectionUpdates, syncPromoCodes } from "../utils/cron.js";
+import { SyncJobModel } from "../models/sync-job-schema.js";
 
 configDotenv();
 
@@ -11,7 +12,21 @@ const connectDB = async () => {
   const connectWithRetry = async () => {
     try {
       await mongoose.connect(ENV.MONGO as string);
-      CollectionUpdates()
+
+      CollectionUpdates();
+
+      // (async () => {
+      //   const runningJob = await SyncJobModel.findOne({
+      //     status: { $in: ["PENDING", "RUNNING"] },
+      //   });
+
+      //   console.warn(runningJob);
+
+      //   if (!runningJob) {
+      //     const job = await SyncJobModel.create({ status: "PENDING" });
+      //     syncPromoCodes(job._id.toString());
+      //   }
+      // })();
       console.log("MongoDB connected 🚀");
     } catch (error: any) {
       attempt += 1;

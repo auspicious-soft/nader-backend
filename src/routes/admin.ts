@@ -23,6 +23,7 @@ import { SidebarModel2 } from "../models/sidebar2-schema.js";
 import { SidebarModel3 } from "../models/sidebar3-schema.js";
 import axios from "axios";
 import { notificatonModel } from "../models/notification-schema.js";
+import { PromoCodeModel } from "../models/promocodes-schema.js";
 
 // Code
 const router = Router();
@@ -1292,63 +1293,79 @@ router.post("/promocode", async (req: Request, res: Response) => {
 });
 
 // Get all coupons with their price rules
+// router.get("/promocode", async (req, res) => {
+//   try {
+//     const headers = {
+//       "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
+//       "Content-Type": "application/json",
+//     };
+
+//     // 1. Fetch ALL price rules
+//     const rulesRes = await axios.get(
+//       `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
+//       { headers }
+//     );
+
+//     const priceRules = rulesRes.data.price_rules || [];
+
+//     if (priceRules.length === 0) {
+//       return OK(res, []);
+//     }
+
+// const wait = (ms: number) => new Promise((res) => res(ms));
+
+// const batchSize = 3;
+// let results: any[] = [];
+
+// for (let i = 0; i < priceRules.length; i += batchSize) {
+//   const batch = priceRules.slice(i, i + batchSize);
+
+//   const batchResults = await Promise.all(
+//     batch.map(async (rule: any) => {
+//       try {
+//         const r = await axios.get(
+//           `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
+//           { headers }
+//         );
+
+//         return { rule, discount_codes: r.data.discount_codes || [] };
+//       } catch (err) {
+//         console.log("Rate-limit hit for rule:", rule.id);
+//         await wait(500);
+//         return { rule, discount_codes: [] };
+//       }
+//     })
+//   );
+
+//   results = results.concat(batchResults);
+
+//   // wait between batches to avoid Shopify throttling
+//   await wait(300);
+// }
+
+//     // 3. FILTER → remove rules that have 0 discount codes
+//     const filtered = results.filter((item) => item.discount_codes.length > 0);
+
+//     return OK(res, { count: filtered.length, filtered });
+//   } catch (err : any) {
+//     console.log(err?.response?.data || err);
+//     return INTERNAL_SERVER_ERROR(res, err?.response?.data || err);
+//   }
+// });
+
 router.get("/promocode", async (req, res) => {
   try {
-    const headers = {
-      "X-Shopify-Access-Token": process.env.X_SHOPIFY_ACESS_TOKEN,
-      "Content-Type": "application/json",
-    };
+    let { page = 1, limit = 50 } = req.query;
+    page = Number(page);
+    limit = Number(limit);
+    const data = await PromoCodeModel.find()
+      .skip(((Number(page) || 1) - 1) * (Number(limit) || 10))
+      .limit(Number(limit) || 10)
+      .sort({ createdAt: -1 })
+      .lean();
 
-    // 1. Fetch ALL price rules
-    const rulesRes = await axios.get(
-      `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules.json`,
-      { headers }
-    );
-
-    const priceRules = rulesRes.data.price_rules || [];
-
-    if (priceRules.length === 0) {
-      return OK(res, []);
-    }
-
- 
-const wait = (ms: number) => new Promise((res) => res(ms));
-
-const batchSize = 3;
-let results: any[] = [];
-
-for (let i = 0; i < priceRules.length; i += batchSize) {
-  const batch = priceRules.slice(i, i + batchSize);
-
-  const batchResults = await Promise.all(
-    batch.map(async (rule: any) => {
-      try {
-        const r = await axios.get(
-          `${process.env.SHOPIFY_ADMIN_API_BASE_URL}/price_rules/${rule.id}/discount_codes.json`,
-          { headers }
-        );
-
-        return { rule, discount_codes: r.data.discount_codes || [] };
-      } catch (err) {
-        console.log("Rate-limit hit for rule:", rule.id);
-        await wait(500);
-        return { rule, discount_codes: [] };
-      }
-    })
-  );
-
-  results = results.concat(batchResults);
-
-  // wait between batches to avoid Shopify throttling
-  await wait(300);
-}
-
-
-    // 3. FILTER → remove rules that have 0 discount codes
-    const filtered = results.filter((item) => item.discount_codes.length > 0);
-
-    return OK(res, filtered);
-  } catch (err : any) {
+    return OK(res, { count: data.length, page, limit, data });
+  } catch (err: any) {
     console.log(err?.response?.data || err);
     return INTERNAL_SERVER_ERROR(res, err?.response?.data || err);
   }
