@@ -176,19 +176,19 @@ export async function syncPromoCodes(jobId: string, THIRTY_DAYS_AGO?: string) {
 }
 
 // 🔁 Run once on server startup
-(async () => {
-  const runningJob = await SyncJobModel.findOne({
-    status: { $in: ["PENDING", "RUNNING"] },
-  });
-  console.warn(runningJob);
-  if (!runningJob) {
-    const THIRTY_DAYS_AGO = new Date(
-      Date.now() - 30 * 24 * 60 * 60 * 1000
-    ).toISOString();
-    const job: any = await SyncJobModel.create({ status: "PENDING" });
-    syncPromoCodes(job._id.toString(), THIRTY_DAYS_AGO);
-  }
-})();
+// (async () => {
+//   const runningJob = await SyncJobModel.findOne({
+//     status: { $in: ["PENDING", "RUNNING"] },
+//   });
+//   console.warn(runningJob);
+//   if (!runningJob) {
+//     const THIRTY_DAYS_AGO = new Date(
+//       Date.now() - 30 * 24 * 60 * 60 * 1000
+//     ).toISOString();
+//     const job: any = await SyncJobModel.create({ status: "PENDING" });
+//     syncPromoCodes(job._id.toString(), THIRTY_DAYS_AGO);
+//   }
+// })();
 
 // ⏰ Run daily at 2 AM IST
 cron.schedule(

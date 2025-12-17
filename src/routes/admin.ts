@@ -1290,14 +1290,17 @@ router.post("/promocode", async (req: Request, res: Response) => {
     if (runningJob) return;
 
     const job: any = await SyncJobModel.create({ status: "PENDING" });
-    const TWO_MINUTES_AGO = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    syncPromoCodes(job._id.toString(), TWO_MINUTES_AGO);
+    const TWO_MINUTES_AGO = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
-    return OK(res, {
-      message: "Promocode created successfully",
-      price_rule: priceRuleResponse.data.price_rule,
-      discount_code: discountResponse.data.discount_code,
-    });
+    setTimeout(async () => {
+      await syncPromoCodes(job._id.toString(), TWO_MINUTES_AGO);
+      return OK(res, {
+        message: "Promocode created successfully",
+        price_rule: priceRuleResponse.data.price_rule,
+        discount_code: discountResponse.data.discount_code,
+      });
+    }, 5000);
+
   } catch (error: any) {
     console.error("Shopify Error: ", error?.response?.data || error);
     return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
