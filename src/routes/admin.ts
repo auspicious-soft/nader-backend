@@ -1300,7 +1300,6 @@ router.post("/promocode", async (req: Request, res: Response) => {
         discount_code: discountResponse.data.discount_code,
       });
     }, 5000);
-
   } catch (error: any) {
     console.error("Shopify Error: ", error?.response?.data || error);
     return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
@@ -1427,6 +1426,8 @@ router.delete(
       await axios.delete(`${BASE_URL}/price_rules/${priceRuleId}.json`, {
         headers,
       });
+
+      await PromoCodeModel.findOneAndDelete({ shopifyRuleId: priceRuleId });
 
       return OK(res, {
         message: "Promocode deleted successfully",
