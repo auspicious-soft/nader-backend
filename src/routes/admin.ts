@@ -1301,7 +1301,9 @@ router.post("/promocode", async (req: Request, res: Response) => {
       });
     }, 5000);
   } catch (error: any) {
-    console.error("Shopify Error: ", error?.response?.data || error);
+    if (error?.response?.data?.errors?.code?.[0]) {
+      return BADREQUEST(res, error?.response?.data?.errors?.code[0]);
+    }
     return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
   }
 });
@@ -1435,7 +1437,9 @@ router.delete(
         deleted_codes: discountCodes.map((c: any) => c.code),
       });
     } catch (error: any) {
-      console.error("Delete Promocode Error:", error?.response?.data || error);
+      if (error?.response?.data?.errors) {
+        return BADREQUEST(res, error?.response?.data?.errors);
+      }
       return INTERNAL_SERVER_ERROR(res, error?.response?.data || error);
     }
   }
