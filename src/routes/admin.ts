@@ -26,6 +26,7 @@ import { notificatonModel } from "../models/notification-schema.js";
 import { PromoCodeModel } from "../models/promocodes-schema.js";
 import { SyncJobModel } from "../models/sync-job-schema.js";
 import { syncPromoCodes } from "../utils/cron.js";
+import { fcmTokenModel } from "../models/fcmToken.js";
 
 // Code
 const router = Router();
@@ -57,6 +58,10 @@ router.post(
   checkUserAuth,
   async (req: Request, res: Response) => {
     try {
+      const checkFCM = await fcmTokenModel.find();
+      if (checkFCM.length === 0) {
+        return BADREQUEST(res, "No users available for notifications");
+      }
       const { title, description, handle, handleTitle } = req.body;
       await sendNotification({
         adminTitle: title,
